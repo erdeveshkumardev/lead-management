@@ -75,6 +75,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const recentLeads: Lead[] = metrics?.recent_leads || [];
+  const staffSummary: any[] = metrics?.staff_summary || [];
 
   const getSourceBadge = (source: string) => {
     switch (source?.toLowerCase()) {
@@ -246,6 +247,138 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* SALES STAFF PERFORMANCE & LEAD STATUS BREAKDOWN */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/60">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold mb-1">
+              <Users className="h-3 w-3" />
+              <span>Sales Staff Performance Summary</span>
+            </div>
+            <h3 className="font-bold text-base text-slate-900">Staff-Wise Lead Allocation & Status Report</h3>
+            <p className="text-xs text-slate-500">Live breakdown of leads assigned to each sales executive and their active pipeline status.</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="p-4">Sales Staff / Executive</th>
+                <th className="p-4">Role & Dept</th>
+                <th className="p-4 text-center">Total Leads</th>
+                <th className="p-4">Lead Status Breakdown</th>
+                <th className="p-4 text-center">Priority (Hot/Warm/Cold)</th>
+                <th className="p-4 text-right">Invoiced (Won)</th>
+                <th className="p-4 text-right">Pipeline Value</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {staffSummary.map((staff: any) => {
+                const isPool = staff.staff_id === 'unassigned';
+                return (
+                  <tr key={staff.staff_id} className={`hover:bg-slate-50/80 transition-colors ${isPool ? 'bg-amber-50/30' : ''}`}>
+                    <td className="p-4">
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
+                        <span>{isPool ? '⚠️' : '👤'}</span>
+                        <span className={isPool ? 'text-amber-800 font-bold' : ''}>{staff.staff_name}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {staff.designation}
+                      </span>
+                    </td>
+
+                    <td className="p-4">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        staff.role === 'company_admin'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : staff.role === 'manager'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : isPool
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}>
+                        {staff.role.replace('_', ' ').toUpperCase()}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">{staff.department}</span>
+                    </td>
+
+                    <td className="p-4 text-center">
+                      <span className={`inline-flex items-center justify-center font-extrabold text-xs px-2.5 py-1 rounded-full border ${
+                        staff.total_leads > 0 
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                          : 'bg-slate-100 text-slate-400 border-slate-200'
+                      }`}>
+                        {staff.total_leads}
+                      </span>
+                    </td>
+
+                    <td className="p-4">
+                      {Object.keys(staff.stages || {}).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(staff.stages).map(([stg, count]) => (
+                            <span 
+                              key={stg} 
+                              className="text-[10px] font-semibold bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md shadow-2xs"
+                              title={`${count} in ${stg}`}
+                            >
+                              <strong className="text-indigo-600 font-bold">{count as any}</strong> {String(stg).replace('_', ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">No active leads</span>
+                      )}
+                    </td>
+
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-1 text-[10px]">
+                        {staff.categories?.HOT ? (
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded font-black">
+                            🔥 {staff.categories.HOT}
+                          </span>
+                        ) : null}
+                        {staff.categories?.WARM ? (
+                          <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold">
+                            ☀️ {staff.categories.WARM}
+                          </span>
+                        ) : null}
+                        {staff.categories?.COLD ? (
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-bold">
+                            ❄️ {staff.categories.COLD}
+                          </span>
+                        ) : null}
+                        {!staff.categories?.HOT && !staff.categories?.WARM && !staff.categories?.COLD && (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="p-4 text-right">
+                      {staff.converted_count > 0 ? (
+                        <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-xs">
+                          ✅ {staff.converted_count} Invoiced
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">0</span>
+                      )}
+                    </td>
+
+                    <td className="p-4 text-right font-extrabold text-slate-800">
+                      {staff.total_deal_value > 0 ? (
+                        <span className="text-emerald-600">₹{Number(staff.total_deal_value).toLocaleString('en-IN')}</span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">₹0</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 

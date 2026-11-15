@@ -1,0 +1,81 @@
+# ==========================================
+# Environment Variables & Secrets (CRITICAL)
+# ==========================================
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+backend/.env
+frontend/.env
+
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+venv/
+env/
+ENV/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Backend App Pycache & Generated PDFs
+backend/__pycache__/
+backend/**/__pycache__/
+backend/invoices_pdf/*.pdf
+!backend/invoices_pdf/.gitkeep
+
+# ==========================================
+# Node.js & Frontend
+# ==========================================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================================
+# IDEs, Editors & OS System Files
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# Logs, Temp & Testing
+# ==========================================
+*.log
+*.sqlite
+*.sqlite3
+.pytest_cache/
+.coverage
+htmlcov/

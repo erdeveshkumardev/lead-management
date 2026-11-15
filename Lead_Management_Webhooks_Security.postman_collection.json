@@ -1,0 +1,708 @@
+{
+  "info": {
+    "_postman_id": "wh-security-collection-v1",
+    "name": "Lead Management - Webhook Security & Ingestion Suite",
+    "description": "Complete Postman collection for testing and integrating Lead Management Webhooks.\nCovers Dual-Channel Protection: Frontend Website Forms (Public Token, Honeypot, Speed Trap, Domain Whitelist) and Backend Server Integrations (HMAC-SHA256 Signatures, Bearer Secret Key, Key Rotation), plus IndiaMART, TradeIndia, Facebook, and Justdial.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Frontend Website Form (Protected Ingestion)",
+      "description": "Form submissions made directly from client-side website HTML / React / Elementor forms.",
+      "item": [
+        {
+          "name": "1.1 Valid Human Form Submission (with Token & Speed Trap)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Simulate form loaded 3.5 seconds ago (Human Typing Speed)",
+                  "const renderTime = (Date.now() / 1000) - 3.5;",
+                  "pm.variables.set(\"human_render_time\", renderTime.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Lead successfully captured\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"success\");",
+                  "    pm.expect(jsonData.lead_id).to.not.eql(\"bot_filtered\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Rajesh Sharma\",\n  \"phone\": \"9876543210\",\n  \"email\": \"rajesh.sharma@apexforge.com\",\n  \"company_name\": \"Apex Engineering Ltd\",\n  \"city\": \"Ahmedabad\",\n  \"product_inquired\": \"CNC Milling Center 3-Axis\",\n  \"inquiry_message\": \"Please share quotation with installation and 1 year warranty details.\",\n  \"_render_time\": {{human_render_time}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}?token={{webhook_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhook_token}}",
+                  "description": "Company Public Webhook Token"
+                }
+              ]
+            },
+            "description": "Submits a genuine human inquiry with valid phone, public token, and human speed threshold."
+          }
+        },
+        {
+          "name": "1.2 Anti-Bot Honeypot Trap (Bot Defused)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Returns deceptive 200 to confuse bot\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Lead filtered by honeypot shield\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.lead_id).to.eql(\"bot_filtered\");",
+                  "    pm.expect(jsonData.bot_shield).to.include(\"Honeypot trap\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Automated Spammer Bot\",\n  \"phone\": \"9876500000\",\n  \"email\": \"spambot@marketing-blast.xyz\",\n  \"inquiry_message\": \"Buy cheap crypto leads right now!\",\n  \"website_hp\": \"http://malicious-seo-link.com\",\n  \"fax_number\": \"+1-800-SPAM\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}?token={{webhook_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhook_token}}"
+                }
+              ]
+            },
+            "description": "Simulates a web scraping bot filling the invisible 'website_hp' honeypot field. Server replies with deceptive 200 without saving any lead into CRM."
+          }
+        },
+        {
+          "name": "1.3 Speed Trap Triggered (< 2.0s fast bot fill)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Instant form submit (0.1 seconds elapsed - automated script)",
+                  "const instantTime = (Date.now() / 1000) - 0.1;",
+                  "pm.variables.set(\"instant_render_time\", instantTime.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Speed trap caught the instant submission\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.lead_id).to.eql(\"bot_filtered\");",
+                  "    pm.expect(jsonData.bot_shield).to.include(\"speed trap\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Headless Chrome Bot\",\n  \"phone\": \"9876599999\",\n  \"email\": \"headless@automatedscript.io\",\n  \"inquiry_message\": \"Instant automated payload injection\",\n  \"_render_time\": {{instant_render_time}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}?token={{webhook_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhook_token}}"
+                }
+              ]
+            },
+            "description": "Simulates an automated script filling and posting the form faster than human typing speed (< 2.0 seconds)."
+          }
+        },
+        {
+          "name": "1.4 Unauthorized Attack (Missing Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Unauthorized Attacker\",\n  \"phone\": \"9876512345\",\n  \"inquiry_message\": \"Attempting to post without token\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"]
+            },
+            "description": "Tests that hitting the webhook URL without a security token or signature returns 401 Unauthorized."
+          }
+        },
+        {
+          "name": "1.5 Dummy Repeating Phone Number Ignored",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Dummy number rejected with status ignored\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"ignored\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Test User\",\n  \"phone\": \"0000000000\",\n  \"inquiry_message\": \"Fake repeated phone number inquiry\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}?token={{webhook_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhook_token}}"
+                }
+              ]
+            },
+            "description": "Tests the dummy phone pattern sanitizer ('0000000000', '1111111111', '1234567890')."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Backend Server-to-Server (HMAC & Bearer)",
+      "description": "Server-to-server webhook ingestion for Zapier, Webflow Server, WordPress PHP, Node.js or Python backend servers.",
+      "item": [
+        {
+          "name": "2.1 HMAC-SHA256 Signed Submission (Auto-Calculated)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Automatically compute HMAC-SHA256 signature using CryptoJS",
+                  "const secret = pm.environment.get(\"webhook_secret\") || \"whsec_1784d478d7f87e5ad89f27479b382cd45cbf4a06\";",
+                  "const rawBody = pm.request.body.raw;",
+                  "const hash = CryptoJS.HmacSHA256(rawBody, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: \"X-Webhook-Signature\", value: \"sha256=\" + hash });",
+                  "console.log(\"Calculated HMAC Signature: sha256=\" + hash);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Security mode is backend_hmac_verified\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.security_mode).to.eql(\"backend_hmac_verified\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "sha256={{dynamic_sig}}",
+                "description": "Auto-calculated by Pre-request Script using HMAC-SHA256"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Vikramaditya Singhania\",\n  \"phone\": \"9123456780\",\n  \"email\": \"vikram@singhaniapipes.com\",\n  \"company_name\": \"Singhania Seamless Pipes Pvt Ltd\",\n  \"city\": \"Kolkata\",\n  \"product_inquired\": \"High Pressure Industrial Valves\",\n  \"inquiry_message\": \"Lead routed via Zapier backend integration from landing page.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"]
+            },
+            "description": "Standard Stripe/GitHub style HMAC SHA-256 webhook signature. Postman computes the signature on the fly using your company secret key."
+          }
+        },
+        {
+          "name": "2.2 Bearer Secret Key Submission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().security_mode).to.eql(\"backend_hmac_verified\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{webhook_secret}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Deepak Aggarwal\",\n  \"phone\": \"9812345678\",\n  \"email\": \"deepak@aggarwalwires.com\",\n  \"company_name\": \"Aggarwal Wire Industries\",\n  \"city\": \"Chandigarh\",\n  \"product_inquired\": \"Copper Wire Drawing Machine\",\n  \"inquiry_message\": \"Lead sent via server-side Bearer token auth.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"]
+            },
+            "description": "Backend-to-backend call authenticated with private secret key via Authorization: Bearer header."
+          }
+        },
+        {
+          "name": "2.3 Tampered Payload / Invalid Signature (Blocked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    pm.expect(pm.response.json().detail).to.include(\"HMAC Webhook Signature mismatch\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "sha256=invalid_counterfeit_signature_hash_attempt"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Tampered Lead\",\n  \"phone\": \"9991112233\",\n  \"inquiry_message\": \"Payload intercepted and modified\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/website/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "website", "{{tenant_id}}"]
+            },
+            "description": "Verifies that tampering with payload or passing an incorrect signature is rejected with 401."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Token Management & Domain Whitelisting",
+      "description": "Company credentials management, token regeneration, and domain restriction controls.",
+      "item": [
+        {
+          "name": "3.1 Get Company Integrations & Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.integrations && json.integrations.website) {",
+                  "    pm.environment.set(\"webhook_token\", json.integrations.website.webhook_token);",
+                  "    pm.environment.set(\"webhook_secret\", json.integrations.website.secret_key);",
+                  "    console.log(\"Updated Postman Environment Tokens!\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/integrations",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "integrations"]
+            },
+            "description": "Fetches company credentials and automatically populates Postman environment variables 'webhook_token' and 'webhook_secret'."
+          }
+        },
+        {
+          "name": "3.2 Regenerate Security Keys (Instant Invalidation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Keys regenerated successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.webhook_token).to.be.a(\"string\");",
+                  "    pm.expect(json.secret_key).to.be.a(\"string\");",
+                  "    pm.environment.set(\"webhook_token\", json.webhook_token);",
+                  "    pm.environment.set(\"webhook_secret\", json.secret_key);",
+                  "    console.log(\"Rotated keys saved into environment\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/integrations/regenerate-keys?provider=website",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "integrations", "regenerate-keys"],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "website"
+                }
+              ]
+            },
+            "description": "Regenerates both public webhook token and private secret key. Immediately invalidates old tokens in case of URL leak."
+          }
+        },
+        {
+          "name": "3.3 Configure Allowed Website Domains",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Integrations updated with allowed domains\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"integrations\": {\n    \"website\": {\n      \"is_enabled\": true,\n      \"allowed_domains\": [\"https://mycompany.com\", \"https://landingpage.in\"]\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/integrations",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "integrations"]
+            },
+            "description": "Sets allowed domains so that frontend form submissions from other unauthorized origins/bots are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Marketplace Inbound Webhooks",
+      "description": "Secured inbound webhooks for IndiaMART, TradeIndia, Meta Lead Ads, and Justdial.",
+      "item": [
+        {
+          "name": "4.1 IndiaMART Inbound Webhook (with CRM Key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CRM-Key",
+                "value": "{{indiamart_crm_key}}",
+                "description": "Optional header or payload field"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UNIQUE_QUERY_ID\": \"IM_99887766\",\n  \"GLUSR_CRM_KEY\": \"{{indiamart_crm_key}}\",\n  \"SENDER_NAME\": \"Vikas Sharma\",\n  \"SENDER_MOBILE\": \"9825012345\",\n  \"SENDER_EMAIL\": \"vikas@sharmatools.com\",\n  \"SENDER_COMPANY\": \"Sharma Engineering Works\",\n  \"SENDER_CITY\": \"Surat\",\n  \"SENDER_STATE\": \"Gujarat\",\n  \"PRODUCT_NAME\": \"CNC Milling Center 3-Axis\",\n  \"QUERY_MESSAGE\": \"Looking for prompt quotation and technical spec sheet for 2 units.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/indiamart/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "indiamart", "{{tenant_id}}"]
+            },
+            "description": "Receives real-time inquiries from IndiaMART Push API. Validates company's registered CRM Key and rate limits."
+          }
+        },
+        {
+          "name": "4.2 TradeIndia Inbound Webhook (with Key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-TradeIndia-Key",
+                "value": "{{tradeindia_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rfi_id\": \"TI_88776655\",\n  \"key\": \"{{tradeindia_key}}\",\n  \"sender_name\": \"Mahesh Joshi\",\n  \"sender_mobile\": \"9825123456\",\n  \"sender_email\": \"mahesh@joshiforge.com\",\n  \"company_name\": \"Joshi Forging Works\",\n  \"sender_city\": \"Rajkot\",\n  \"sender_state\": \"Gujarat\",\n  \"product_name\": \"Hydraulic Press Machine 50 Ton\",\n  \"query_message\": \"Please share best quotation with delivery timeline.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/tradeindia/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "tradeindia", "{{tenant_id}}"]
+            },
+            "description": "Receives leads from TradeIndia API with API key verification."
+          }
+        },
+        {
+          "name": "4.3 Facebook Webhook Verification Handshake",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Returns challenge token for handshake\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.text()).to.include(\"11223344\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/webhooks/facebook/{{tenant_id}}?hub.mode=subscribe&hub.challenge=11223344&hub.verify_token=fb_token_123",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "facebook", "{{tenant_id}}"],
+              "query": [
+                {
+                  "key": "hub.mode",
+                  "value": "subscribe"
+                },
+                {
+                  "key": "hub.challenge",
+                  "value": "11223344"
+                },
+                {
+                  "key": "hub.verify_token",
+                  "value": "fb_token_123"
+                }
+              ]
+            },
+            "description": "Meta / Facebook initial webhook registration handshake."
+          }
+        },
+        {
+          "name": "4.4 Facebook Lead Ads Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Anita Desai\",\n  \"phone_number\": \"9898011223\",\n  \"email\": \"anita@desaiinteriors.com\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"message\": \"Interested in heavy machinery finance options\",\n  \"budget\": \"₹15,00,000+\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/facebook/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "facebook", "{{tenant_id}}"]
+            },
+            "description": "Captures inbound leads from Facebook & Instagram Lead Ads."
+          }
+        },
+        {
+          "name": "4.5 Justdial Inbound Lead Webhook",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Justdial-Key",
+                "value": "{{justdial_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadid\": \"JD_55443322\",\n  \"name\": \"Prashant Verma\",\n  \"mobile\": \"9811223344\",\n  \"email\": \"prashant@vermatech.com\",\n  \"company\": \"Verma Tech Solutions\",\n  \"city\": \"Delhi\",\n  \"category\": \"Industrial Machinery Dealers\",\n  \"area\": \"Okhla Industrial Area\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/justdial/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "justdial", "{{tenant_id}}"]
+            },
+            "description": "Receives leads from Justdial Lead API with API key protection."
+          }
+        }
+      ]
+    }
+  ]
+}

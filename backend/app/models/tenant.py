@@ -1,0 +1,108 @@
+import secrets
+from datetime import datetime
+from typing import Optional, Dict, Any, List
+from beanie import Document, Indexed
+from pydantic import BaseModel, Field
+
+
+def generate_webhook_token() -> str:
+    return f"wh_pub_{secrets.token_urlsafe(18).replace('-', '').replace('_', '')[:24]}"
+
+
+def generate_secret_key() -> str:
+    return f"whsec_{secrets.token_hex(20)}"
+
+
+class BankDetails(BaseModel):
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    branch_name: Optional[str] = None
+    upi_id: Optional[str] = None
+
+
+class PipelineStage(BaseModel):
+    id: str  # e.g. "NEW", "SITE_VISIT", "SPEC_SHARED"
+    label: str  # e.g. "Site Visit Scheduled"
+    color: str = "blue"  # blue, amber, indigo, purple, orange, emerald, rose, slate
+    order: int = 0
+
+
+def get_default_pipeline_stages() -> List[PipelineStage]:
+    return [
+        PipelineStage(id="NEW", label="New Inquiries", color="blue", order=0),
+        PipelineStage(id="CONTACTED", label="Contacted", color="amber", order=1),
+        PipelineStage(id="DEMO_SCHEDULED", label="Demo / Spec Sent", color="indigo", order=2),
+        PipelineStage(id="PROPOSAL_SENT", label="Quotation Sent", color="purple", order=3),
+        PipelineStage(id="NEGOTIATION", label="Negotiation", color="orange", order=4),
+        PipelineStage(id="WON", label="Won (Invoiced)", color="emerald", order=5),
+        PipelineStage(id="LOST", label="Lost", color="slate", order=6),
+    ]
+
+
+class IntegrationConfig(BaseModel):
+    is_enabled: bool = False
+    api_key: Optional[str] = None
+    crm_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    account_id: Optional[str] = None
+    webhook_token: Optional[str] = None
+    allowed_domains: List[str] = Field(default_factory=list)
+    auto_sync: bool = True
+    last_sync_at: Optional[datetime] = None
+    status: str = "Not Configured"  # "Connected", "Configured", "Error", "Not Configured"
+
+
+class TenantIntegrations(BaseModel):
+    indiamart: IntegrationConfig = Field(default_factory=IntegrationConfig)
+    facebook: IntegrationConfig = Field(default_factory=IntegrationConfig)
+    tradeindia: IntegrationConfig = Field(default_factory=IntegrationConfig)
+    justdial: IntegrationConfig = Field(default_factory=IntegrationConfig)
+    website: IntegrationConfig = Field(default_factory=IntegrationConfig)
+
+
+class Tenant(Document):
+    """
+    Tenant / Company Profile.
+    Managed by Super Admin with user limits, subscription plan, and permissions.
+    Supports company-customizable sales pipeline stages & lead source API integrations.
+    """
+    company_name: Indexed(str)
+    slug: Optional[str] = None  # e.g. "apex-machineries"
+    company_type: str = "manufacturing"  # manufacturing, trading, services, real_estate, agency
+    
+    # Super Admin Licensing & Limits
+    max_users_limit: int = 5  # Set by Super Admin
+    plan_name: str = "Professional"  # "Starter", "Professional", "Enterprise"
+    status: str = "ACTIVE"  # "ACTIVE", "SUSPENDED", "TRIAL"
+    company_admin_email: Optional[str] = None
+
+    # Customizable Pipeline Stages per Company
+    pipeline_stages: List[PipelineStage] = Field(default_factory=get_default_pipeline_stages)
+
+    # Lead Marketplace API Settings per Company (IndiaMART, Facebook, TradeIndia, Justdial, Website)
+    integrations: TenantIntegrations = Field(default_factory=TenantIntegrations)
+
+    # Company Level Masters (Categories, Lost Reasons, Follow-up Types, Campaigns, Departments, Designations)
+    company_masters: Dict[str, Any] = Field(default_factory=dict)
+
+    # GST & Invoicing Profile
+    gstin: Optional[str] = None
+    pan_number: Optional[str] = None
+    state_code: Optional[str] = None  # e.g. "24" for Gujarat
+    state_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    pincode: Optional[str] = None
+    logo_url: Optional[str] = None
+    bank_details: BankDetails = Field(default_factory=BankDetails)
+    default_invoice_terms: Optional[str] = "1. Goods once sold will not be taken back.\n2. Payment due within 15 days."
+    is_active: bool = True
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "tenants"

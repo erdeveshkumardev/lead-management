@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+  }
+}
+
+/* Custom scrollbars */
+.kanban-col::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.kanban-col::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kanban-col::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+.kanban-col::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

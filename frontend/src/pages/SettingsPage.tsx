@@ -513,59 +513,59 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-[11px] font-semibold text-slate-600">Enabled</span>
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                <span className="text-[11px] font-bold text-slate-700">{indiamartEnabled ? 'Active' : 'Disabled'}</span>
                 <input
                   type="checkbox"
                   checked={indiamartEnabled}
                   onChange={(e) => setIndiamartEnabled(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4"
+                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4 cursor-pointer"
                 />
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">IndiaMART CRM API Key</label>
-                <input
-                  type="text"
-                  placeholder="e.g. mRxxxxxxxxxxxxxxxxxxx="
-                  value={indiamartKey}
-                  onChange={(e) => setIndiamartKey(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Push Webhook Key (GLUSR_CRM_KEY)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. secret_crm_key"
-                  value={indiamartCrmKey}
-                  onChange={(e) => setIndiamartCrmKey(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Company Webhook Push URL (Copy into IndiaMART)</label>
-                <div className="relative">
+            {indiamartEnabled ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">IndiaMART CRM Key (GLUSR_CRM_KEY)</label>
                   <input
                     type="text"
-                    readOnly
-                    value={`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`}
-                    className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    placeholder="e.g. mRxxxxxxxxxxxxxxxxxxx="
+                    value={indiamartCrmKey || indiamartKey}
+                    onChange={(e) => {
+                      setIndiamartCrmKey(e.target.value);
+                      setIndiamartKey(e.target.value);
+                    }}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`, 'im')}
-                    className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
-                  >
-                    {copiedKey === 'im' ? 'Copied!' : 'Copy URL'}
-                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1">Single secret key provided in IndiaMART Seller Portal under CRM Webhook settings.</p>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Company Webhook Push URL (Paste into IndiaMART)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`}
+                      className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`, 'im')}
+                      className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
+                    >
+                      {copiedKey === 'im' ? 'Copied!' : 'Copy URL'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Provide this URL to IndiaMART support or paste in your IndiaMART developer portal.</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 italic bg-slate-50/60 p-3 rounded-xl border border-dashed border-slate-200">
+                Integration is currently disabled. Toggle "Active" above if you receive buyer inquiries from IndiaMART.
+              </div>
+            )}
           </div>
 
           {/* Section 2: Facebook / Meta Lead Ads */}
@@ -581,48 +581,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-[11px] font-semibold text-slate-600">Enabled</span>
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                <span className="text-[11px] font-bold text-slate-700">{facebookEnabled ? 'Active' : 'Disabled'}</span>
                 <input
                   type="checkbox"
                   checked={facebookEnabled}
                   onChange={(e) => setFacebookEnabled(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4"
+                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4 cursor-pointer"
                 />
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Page Access Token (Permanent / Long-lived)</label>
-                <input
-                  type="password"
-                  placeholder="EAABxxxxxxxxxxxxxxxxxxxxxxx"
-                  value={facebookToken}
-                  onChange={(e) => setFacebookToken(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono bg-slate-50 focus:bg-white text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Facebook Webhook Callback URL</label>
-                <div className="relative">
+            {facebookEnabled ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Page Access Token (Permanent / Long-lived)</label>
                   <input
-                    type="text"
-                    readOnly
-                    value={`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`}
-                    className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    type="password"
+                    placeholder="EAABxxxxxxxxxxxxxxxxxxxxxxx"
+                    value={facebookToken}
+                    onChange={(e) => setFacebookToken(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono bg-slate-50 focus:bg-white text-slate-800"
                   />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`, 'fb')}
-                    className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
-                  >
-                    {copiedKey === 'fb' ? 'Copied!' : 'Copy URL'}
-                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1">Required to decrypt prospect phone numbers & names from Meta Graph API.</p>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Facebook Webhook Callback URL</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`}
+                      className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`, 'fb')}
+                      className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
+                    >
+                      {copiedKey === 'fb' ? 'Copied!' : 'Copy URL'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Configure in Meta for Developers app dashboard under Webhooks.</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 italic bg-slate-50/60 p-3 rounded-xl border border-dashed border-slate-200">
+                Integration is currently disabled. Toggle "Active" above if you run paid Lead Ads on Facebook or Instagram.
+              </div>
+            )}
           </div>
 
           {/* Section 3: TradeIndia */}
@@ -638,48 +646,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-[11px] font-semibold text-slate-600">Enabled</span>
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                <span className="text-[11px] font-bold text-slate-700">{tradeindiaEnabled ? 'Active' : 'Disabled'}</span>
                 <input
                   type="checkbox"
                   checked={tradeindiaEnabled}
                   onChange={(e) => setTradeindiaEnabled(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4"
+                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4 cursor-pointer"
                 />
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">User ID / Profile ID</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 5184209"
-                  value={tradeindiaUserId}
-                  onChange={(e) => setTradeindiaUserId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">TradeIndia Webhook Push Endpoint</label>
-                <div className="relative">
+            {tradeindiaEnabled ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">User ID / Profile ID</label>
                   <input
                     type="text"
-                    readOnly
-                    value={`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`}
-                    className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    placeholder="e.g. 5184209"
+                    value={tradeindiaUserId}
+                    onChange={(e) => setTradeindiaUserId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white text-slate-800"
                   />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`, 'ti')}
-                    className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
-                  >
-                    {copiedKey === 'ti' ? 'Copied!' : 'Copy URL'}
-                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1">TradeIndia Seller Profile ID found on your tradeindia dashboard.</p>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">TradeIndia Webhook Push Endpoint</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`}
+                      className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`, 'ti')}
+                      className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
+                    >
+                      {copiedKey === 'ti' ? 'Copied!' : 'Copy URL'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Paste this callback URL into TradeIndia CRM Inquiries setting.</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 italic bg-slate-50/60 p-3 rounded-xl border border-dashed border-slate-200">
+                Integration is currently disabled. Toggle "Active" above if you have a TradeIndia seller account.
+              </div>
+            )}
           </div>
 
           {/* Section 4: Justdial */}
@@ -695,48 +711,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-[11px] font-semibold text-slate-600">Enabled</span>
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                <span className="text-[11px] font-bold text-slate-700">{justdialEnabled ? 'Active' : 'Disabled'}</span>
                 <input
                   type="checkbox"
                   checked={justdialEnabled}
                   onChange={(e) => setJustdialEnabled(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4"
+                  className="rounded text-indigo-600 focus:ring-0 h-4 w-4 cursor-pointer"
                 />
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Justdial Lead API Key</label>
-                <input
-                  type="text"
-                  placeholder="e.g. JD_API_KEY_xxxx"
-                  value={justdialKey}
-                  onChange={(e) => setJustdialKey(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Justdial Webhook Push URL</label>
-                <div className="relative">
+            {justdialEnabled ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Justdial Lead API Key</label>
                   <input
                     type="text"
-                    readOnly
-                    value={`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`}
-                    className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    placeholder="e.g. JD_API_KEY_xxxx"
+                    value={justdialKey}
+                    onChange={(e) => setJustdialKey(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white text-slate-800"
                   />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`, 'jd')}
-                    className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
-                  >
-                    {copiedKey === 'jd' ? 'Copied!' : 'Copy URL'}
-                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1">Lead API authentication key issued by Justdial account executive.</p>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Justdial Webhook Push URL</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`}
+                      className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`, 'jd')}
+                      className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
+                    >
+                      {copiedKey === 'jd' ? 'Copied!' : 'Copy URL'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Provide this webhook URL to Justdial support to receive real-time call/web leads.</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 italic bg-slate-50/60 p-3 rounded-xl border border-dashed border-slate-200">
+                Integration is currently disabled. Toggle "Active" above if you receive leads from Justdial.
+              </div>
+            )}
           </div>
 
           {/* Section 5: Website Contact Form (Dual-Channel Ingestion) */}

@@ -41,6 +41,7 @@ export interface Lead {
   stage: string;
   priority: string;
   category?: 'HOT' | 'WARM' | 'COLD' | string;
+  assigned_to_user_id?: string;
   assigned_to_user_name?: string;
   custom_fields: Record<string, any>;
   conversion_info: {
@@ -125,7 +126,9 @@ export interface TeamMember {
   tenant_id: string;
   full_name: string;
   email: string;
-  role: 'company_admin' | 'manager' | 'staff';
+  role: 'company_admin' | 'manager' | 'staff' | string;
+  designation?: string;
+  department?: string;
   phone?: string;
   permissions: Record<string, boolean>;
   is_active: boolean;
@@ -279,17 +282,38 @@ export const api = {
     category = '',
     dateFilter = '',
     startDate = '',
-    endDate = ''
+    endDate = '',
+    assignedTo = ''
   ) => {
     const params = new URLSearchParams({ tenant_id: tenantId });
     if (search) params.append('search', search);
     if (stage && stage !== 'all') params.append('stage', stage);
     if (source && source !== 'all') params.append('source', source);
     if (category && category !== 'all') params.append('category', category);
+    if (assignedTo && assignedTo !== 'all') params.append('assigned_to', assignedTo);
     if (dateFilter && dateFilter !== 'all') params.append('date_filter', dateFilter);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const res = await fetch(`${API_BASE_URL}/leads/?${params.toString()}`);
+    return res.json();
+  },
+
+  assignLead: async (
+    leadId: string,
+    userId: string | null,
+    note?: string,
+    assignedByName?: string,
+    tenantId = DEFAULT_TENANT_ID
+  ) => {
+    const res = await fetch(`${API_BASE_URL}/leads/${leadId}/assign?tenant_id=${tenantId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        note,
+        assigned_by_name: assignedByName
+      })
+    });
     return res.json();
   },
 

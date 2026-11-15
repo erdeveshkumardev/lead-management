@@ -621,6 +621,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                           )}
                         </div>
 
+                        {/* 3.5 Assigned Staff Pill */}
+                        <div className="flex items-center justify-between text-[10px] mb-1.5">
+                          <span className="text-slate-400 font-medium">Assigned:</span>
+                          {lead.assigned_to_user_name ? (
+                            <span className="inline-flex items-center gap-1 font-bold text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 shadow-2xs">
+                              <span>👤</span>
+                              <span className="truncate max-w-[120px]">{lead.assigned_to_user_name}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-amber-700 font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                              ⚠️ Unassigned
+                            </span>
+                          )}
+                        </div>
+
                         {/* 4. Bottom Action Bar (Ultra-Compact) */}
                         <div 
                           className="flex items-center justify-between pt-1.5 border-t border-slate-100 gap-1.5" 

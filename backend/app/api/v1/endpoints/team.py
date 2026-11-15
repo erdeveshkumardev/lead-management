@@ -13,7 +13,9 @@ class AddTeamMemberRequest(BaseModel):
     full_name: str
     email: EmailStr
     password: str = "password123"
-    role: str = "staff"  # "manager", "staff"
+    role: str = "staff"  # "company_admin", "manager", "staff"
+    designation: Optional[str] = None  # e.g. "Sales Executive", "Senior BDA", "Team Leader"
+    department: Optional[str] = None  # e.g. "Sales & Business Development", "Management"
     phone: Optional[str] = None
     custom_permissions: Optional[Dict[str, bool]] = None
 
@@ -26,13 +28,20 @@ class UpdatePermissionsRequest(BaseModel):
 async def list_team_members(tenant_id: str):
     tenant = await get_document_by_id(Tenant, tenant_id)
     if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"slug": tenant_id}, {"company_name": tenant_id}]})
+    if not tenant:
         raise HTTPException(status_code=404, detail="Company tenant not found")
 
-    members = await User.find(User.tenant_id == tenant_id).sort("created_at").to_list()
+    target_tenant_id = str(tenant.id)
+    query_tenant_ids = [target_tenant_id]
+    if tenant.slug in ["apex-machineries", "demo_tenant_01"] or tenant_id == "demo_tenant_01":
+        query_tenant_ids.append("demo_tenant_01")
+
+    members = await User.find({"tenant_id": {"$in": query_tenant_ids}}).sort("created_at").to_list()
     active_count = len([m for m in members if m.is_active])
 
     return {
-        "tenant_id": tenant_id,
+        "tenant_id": target_tenant_id,
         "company_name": tenant.company_name,
         "max_users_limit": tenant.max_users_limit,
         "current_users_count": active_count,
@@ -45,10 +54,16 @@ async def list_team_members(tenant_id: str):
 async def add_team_member(tenant_id: str, payload: AddTeamMemberRequest):
     tenant = await get_document_by_id(Tenant, tenant_id)
     if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"slug": tenant_id}, {"company_name": tenant_id}]})
+    if not tenant:
         raise HTTPException(status_code=404, detail="Company not found")
 
+    target_tenant_id = str(tenant.id)
+
     # ENFORCE LICENSING LIMIT SET BY SUPER ADMIN
-    active_users_count = await User.find(User.tenant_id == tenant_id, User.is_active == True).count()
+    active_users_count = await User.find(
+        {"tenant_id": {"$in": [target_tenant_id, tenant_id]}, "is_active": True}
+    ).count()
     if active_users_count >= tenant.max_users_limit:
         raise HTTPException(
             status_code=400,
@@ -66,19 +81,21 @@ async def add_team_member(tenant_id: str, payload: AddTeamMemberRequest):
         perms.update(payload.custom_permissions)
 
     new_user = User(
-        tenant_id=tenant_id,
+        tenant_id=target_tenant_id,
         full_name=payload.full_name,
         email=payload.email,
         hashed_password=payload.password,
         phone=payload.phone,
         role=payload.role,
+        designation=payload.designation,
+        department=payload.department,
         permissions=perms
     )
     await new_user.insert()
 
     return {
         "status": "success",
-        "message": f"Team member {payload.full_name} added as {payload.role.upper()}",
+        "message": f"Team member {payload.full_name} added as {payload.role.upper()} ({payload.designation or 'Staff'})",
         "member": new_user
     }
 

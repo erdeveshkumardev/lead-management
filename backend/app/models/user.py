@@ -68,6 +68,8 @@ class User(Document):
     hashed_password: str
     phone: Optional[str] = None
     role: str = "staff"  # "super_admin", "company_admin", "manager", "staff"
+    designation: Optional[str] = None  # e.g. "Sales Executive", "Senior BDA", "Team Leader"
+    department: Optional[str] = None  # e.g. "Sales & Business Development", "Management"
     permissions: Dict[str, bool] = Field(default_factory=dict)
     is_active: bool = True
     assigned_leads_count: int = 0

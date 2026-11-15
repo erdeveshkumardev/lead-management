@@ -29,7 +29,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('password123');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'manager' | 'staff'>('staff');
+  const [role, setRole] = useState<'company_admin' | 'manager' | 'staff'>('staff');
+  const [designation, setDesignation] = useState('Sales Executive');
+  const [customDesignation, setCustomDesignation] = useState('');
+  const [department, setDepartment] = useState('Sales & Business Development');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -58,6 +61,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
     e.preventDefault();
     setIsSubmitting(true);
     setErrorMsg('');
+    const effectiveDesignation = designation === 'custom' ? customDesignation.trim() : designation;
+
     try {
       const res = await api.addTeamMember(tenantId, {
         full_name: fullName,
@@ -65,6 +70,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
         password,
         phone: phone || undefined,
         role,
+        designation: effectiveDesignation || undefined,
+        department: department || undefined,
       });
 
       if (res.status === 'success') {
@@ -73,6 +80,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
         setFullName('');
         setEmail('');
         setPhone('');
+        setCustomDesignation('');
         loadTeam();
         setTimeout(() => setSuccessMsg(''), 4000);
       } else {
@@ -209,8 +217,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="p-4">User</th>
-                  <th className="p-4">Email & Phone</th>
+                  <th className="p-4">Designation & Dept</th>
                   <th className="p-4">Role</th>
+                  <th className="p-4 text-center">Assigned Leads</th>
+                  <th className="p-4">Email & Phone</th>
                   <th className="p-4">Active Permissions</th>
                   <th className="p-4 text-center">Status</th>
                   <th className="p-4 text-right">Actions</th>
@@ -230,9 +240,13 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
                         </span>
                       </td>
 
-                      <td className="p-4 text-slate-700 font-medium">
-                        <div>{member.email}</div>
-                        {member.phone && <div className="text-[10px] text-slate-400">{member.phone}</div>}
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-800 text-xs">
+                          {member.designation || (member.role === 'company_admin' ? 'Company Director / Admin' : member.role === 'manager' ? 'Sales Manager' : 'Sales Executive')}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          {member.department || 'Sales & Business Development'}
+                        </span>
                       </td>
 
                       <td className="p-4">
@@ -245,6 +259,18 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
                         }`}>
                           {member.role.replace('_', ' ')}
                         </span>
+                      </td>
+
+                      <td className="p-4 text-center">
+                        <span className="inline-flex items-center gap-1 font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+                          <span>👤</span>
+                          <span>{member.assigned_leads_count || 0} Leads</span>
+                        </span>
+                      </td>
+
+                      <td className="p-4 text-slate-700 font-medium">
+                        <div>{member.email}</div>
+                        {member.phone && <div className="text-[10px] text-slate-400">{member.phone}</div>}
                       </td>
 
                       <td className="p-4">
@@ -358,21 +384,72 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono text-xs"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Role Type</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Role Type (Access Level) *</label>
                     <select
                       value={role}
                       onChange={(e) => setRole(e.target.value as any)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-xs"
                     >
-                      <option value="staff">Staff / Sales Agent</option>
-                      <option value="manager">Team Manager</option>
+                      <option value="staff">Staff / Sales Executive (Lead Operations)</option>
+                      <option value="manager">Team Manager (Lead Assignment & Team View)</option>
+                      <option value="company_admin">Company Admin (Full Company Access)</option>
                     </select>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Designation / Title *</label>
+                    <select
+                      value={designation}
+                      onChange={(e) => setDesignation(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-xs"
+                    >
+                      <option value="Sales Executive">Sales Executive</option>
+                      <option value="Senior BDA">Senior BDA (Business Development Associate)</option>
+                      <option value="Team Leader">Team Leader</option>
+                      <option value="Sales Manager">Sales Manager</option>
+                      <option value="General Manager">General Manager</option>
+                      <option value="Telecaller / CRM Executive">Telecaller / CRM Executive</option>
+                      <option value="Accounts & Billing Executive">Accounts & Billing Executive</option>
+                      <option value="Technical Support Engineer">Technical Support Engineer</option>
+                      <option value="custom">✍️ Other / Custom Designation...</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Department</label>
+                    <select
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-xs"
+                    >
+                      <option value="Sales & Business Development">Sales & Business Development</option>
+                      <option value="Presales & Estimation">Presales & Estimation</option>
+                      <option value="Accounts & Billing">Accounts & Billing</option>
+                      <option value="Technical Support">Technical Support</option>
+                      <option value="Management & Operations">Management & Operations</option>
+                    </select>
+                  </div>
+                </div>
+
+                {designation === 'custom' && (
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Specify Custom Designation *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Regional Sales Head / Key Account Manager"
+                      value={customDesignation}
+                      onChange={(e) => setCustomDesignation(e.target.value)}
+                      className="w-full border border-blue-300 bg-blue-50/40 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="font-semibold text-slate-700 block mb-1">Phone Number</label>
@@ -381,7 +458,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
                     placeholder="9876543210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 text-xs"
                   />
                 </div>
 

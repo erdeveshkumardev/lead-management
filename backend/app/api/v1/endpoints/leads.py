@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.core.database import get_document_by_id
 from app.models.tenant import Tenant
 from app.models.lead import Lead, TimelineItem
+from app.models.user import User
 from app.schemas.lead import (
     LeadCreateRequest,
     LeadUpdateRequest,
@@ -11,10 +12,19 @@ from app.schemas.lead import (
     LeadStageUpdateRequest,
     LeadCategoryUpdateRequest,
 )
+from pydantic import BaseModel
 from app.services.lead_service import process_and_save_lead
 from app.services.adapters.base import StandardLeadDTO
 
 router = APIRouter(prefix="/leads", tags=["Leads CRM"])
+
+
+class LeadAssignRequest(BaseModel):
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+    note: Optional[str] = None
+    assigned_by_id: Optional[str] = None
+    assigned_by_name: Optional[str] = None
 
 
 @router.get("/")
@@ -23,6 +33,7 @@ async def list_leads(
     stage: Optional[str] = None,
     source: Optional[str] = None,
     category: Optional[str] = None,
+    assigned_to: Optional[str] = None,
     date_filter: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -49,6 +60,15 @@ async def list_leads(
         query["source"] = source.lower()
     if category and category != "all":
         query["category"] = category.upper()
+    if assigned_to and assigned_to != "all":
+        if assigned_to == "unassigned":
+            query["$or"] = [
+                {"assigned_to_user_id": None},
+                {"assigned_to_user_id": {"$exists": False}},
+                {"assigned_to_user_id": ""}
+            ]
+        else:
+            query["assigned_to_user_id"] = assigned_to
     if search:
         query["$or"] = [
             {"full_name": {"$regex": search, "$options": "i"}},
@@ -276,3 +296,82 @@ async def add_lead_activity(lead_id: str, tenant_id: str, payload: LeadAddActivi
     lead.updated_at = datetime.utcnow()
     await lead.save()
     return {"status": "success", "lead": lead}
+
+
+@router.post("/{lead_id}/assign")
+async def assign_lead(lead_id: str, tenant_id: str, payload: LeadAssignRequest):
+    tenant = await get_document_by_id(Tenant, tenant_id)
+    if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"company_name": tenant_id}, {"slug": tenant_id}]})
+
+    lead = await get_document_by_id(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # Tenant verification with alias support
+    if tenant:
+        allowed_ids = [str(tenant.id)]
+        if tenant.slug in ["apex-machineries", "demo_tenant_01"] or tenant_id == "demo_tenant_01":
+            allowed_ids.append("demo_tenant_01")
+        if lead.tenant_id not in allowed_ids and lead.tenant_id != tenant_id:
+            raise HTTPException(status_code=403, detail="Unauthorized access to lead")
+
+    assigned_by = payload.assigned_by_name or "Admin / Manager"
+
+    if payload.user_id and payload.user_id not in ["unassigned", "none", ""]:
+        user = await get_document_by_id(User, payload.user_id)
+        if not user and payload.user_name:
+            user = await User.find_one(User.full_name == payload.user_name)
+        if not user:
+            raise HTTPException(status_code=404, detail="Staff member not found")
+
+        old_assignee = lead.assigned_to_user_name or "Unassigned"
+        lead.assigned_to_user_id = str(user.id)
+        lead.assigned_to_user_name = user.full_name
+
+        # Increment assigned leads count for this user
+        user.assigned_leads_count = (user.assigned_leads_count or 0) + 1
+        await user.save()
+
+        role_label = user.role.replace('_', ' ').title()
+        timeline_note = f"Lead assigned to {user.full_name} ({role_label}"
+        if getattr(user, 'designation', None):
+            timeline_note += f" - {user.designation}"
+        timeline_note += f") by {assigned_by}"
+        if payload.note:
+            timeline_note += f". Note: {payload.note}"
+
+        lead.timeline.append(
+            TimelineItem(
+                activity_type="ASSIGNMENT",
+                note=timeline_note,
+                performed_by_id=payload.assigned_by_id or "ADMIN",
+                performed_by_name=assigned_by
+            )
+        )
+    else:
+        # Unassign lead
+        old_assignee = lead.assigned_to_user_name or "Staff"
+        lead.assigned_to_user_id = None
+        lead.assigned_to_user_name = None
+
+        timeline_note = f"Lead unassigned from {old_assignee} by {assigned_by}"
+        if payload.note:
+            timeline_note += f". Note: {payload.note}"
+
+        lead.timeline.append(
+            TimelineItem(
+                activity_type="ASSIGNMENT",
+                note=timeline_note,
+                performed_by_id=payload.assigned_by_id or "ADMIN",
+                performed_by_name=assigned_by
+            )
+        )
+
+    lead.updated_at = datetime.utcnow()
+    await lead.save()
+    return {
+        "status": "success",
+        "message": f"Lead assigned successfully to {lead.assigned_to_user_name or 'Unassigned'}",
+        "lead": lead
+    }

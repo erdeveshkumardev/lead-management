@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lead, api } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { Lead, api, CurrentUser, TeamMember } from '../services/api';
 import { formatIndianDateTime, formatIndianDate } from '../utils/dateUtils';
 import { 
   X, 
@@ -12,11 +12,15 @@ import {
   PhoneCall, 
   Receipt,
   FileEdit,
-  Send
+  Send,
+  UserCheck,
+  Users
 } from 'lucide-react';
 
 interface LeadDetailModalProps {
   lead: Lead;
+  currentUser?: CurrentUser | null;
+  tenantId?: string;
   onClose: () => void;
   onConvertToBill: (lead: Lead) => void;
   onLeadUpdated: () => void;
@@ -24,6 +28,8 @@ interface LeadDetailModalProps {
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   lead,
+  currentUser,
+  tenantId,
   onClose,
   onConvertToBill,
   onLeadUpdated,
@@ -32,6 +38,50 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [activityNote, setActivityNote] = useState('');
   const [activityType, setActivityType] = useState('CALL_LOG');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Staff Assignment State
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(lead.assigned_to_user_id || 'unassigned');
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const canAssign = !currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin';
+
+  useEffect(() => {
+    setSelectedStaffId(lead.assigned_to_user_id || 'unassigned');
+  }, [lead.assigned_to_user_id]);
+
+  useEffect(() => {
+    const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
+    api.getTeamMembers(activeTenant)
+      .then((res) => {
+        if (res && res.members) {
+          setTeamMembers(res.members.filter((m: TeamMember) => m.is_active));
+        }
+      })
+      .catch((err) => console.error('Failed to load team members:', err));
+  }, [lead.tenant_id, tenantId]);
+
+  const handleAssignLead = async (targetUserId: string) => {
+    setIsAssigning(true);
+    try {
+      const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
+      const assignerName = currentUser?.full_name || 'Admin';
+      const finalUserId = targetUserId === 'unassigned' ? null : targetUserId;
+      await api.assignLead(
+        lead._id || lead.id || '',
+        finalUserId,
+        undefined,
+        assignerName,
+        activeTenant
+      );
+      setSelectedStaffId(targetUserId);
+      onLeadUpdated();
+    } catch (err) {
+      console.error('Failed to assign lead:', err);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +212,49 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </div>
         </div>
 
+        {/* Staff Assignment Bar (Company Admin & Manager Access) */}
+        <div className="px-6 py-2.5 bg-indigo-50/60 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-indigo-600 shrink-0" />
+            <span className="font-bold text-slate-700">Assigned Staff:</span>
+            {lead.assigned_to_user_name ? (
+              <span className="inline-flex items-center gap-1.5 font-bold text-xs bg-indigo-100 text-indigo-900 px-3 py-1 rounded-full border border-indigo-200 shadow-2xs">
+                <span>👤</span>
+                <span>{lead.assigned_to_user_name}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-xs bg-amber-100/70 text-amber-800 px-3 py-1 rounded-full border border-amber-300">
+                <span>⚠️</span>
+                <span>Unassigned (Pool)</span>
+              </span>
+            )}
+          </div>
+
+          {canAssign ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-600">Assign / Reassign:</span>
+              <select
+                disabled={isAssigning}
+                value={selectedStaffId}
+                onChange={(e) => handleAssignLead(e.target.value)}
+                className="text-xs font-semibold bg-white text-slate-800 border border-indigo-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                <option value="unassigned">-- Unassign / Open Pool --</option>
+                {teamMembers.map((member) => (
+                  <option key={member._id} value={member._id}>
+                    {member.full_name} ({member.designation || member.role.replace('_', ' ').toUpperCase()})
+                  </option>
+                ))}
+              </select>
+              {isAssigning && (
+                <span className="text-[11px] text-indigo-600 font-bold animate-pulse">Saving...</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-400 italic">Only Manager/Admin can reassign</span>
+          )}
+        </div>
+
         {/* Tab switcher */}
         <div className="px-6 border-b border-slate-200 flex gap-4 text-xs font-semibold">
           <button
@@ -220,6 +313,18 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 <p className="font-semibold text-slate-800 flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-blue-600" />
                   {lead.city || ''} {lead.state || 'India'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-1 col-span-2">
+                <span className="text-indigo-600 font-medium">Assigned Executive / Team Member</span>
+                <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserCheck className="h-4 w-4 text-indigo-600" />
+                  {lead.assigned_to_user_name ? (
+                    <span>{lead.assigned_to_user_name}</span>
+                  ) : (
+                    <span className="text-amber-600 font-semibold">Unassigned (Open Pool)</span>
+                  )}
                 </p>
               </div>
 

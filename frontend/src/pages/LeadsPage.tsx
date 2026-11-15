@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Lead, api } from '../services/api';
+import { Lead, api, CurrentUser, TeamMember } from '../services/api';
 import { formatIndianDate } from '../utils/dateUtils';
 import { 
   Users, 
@@ -13,11 +13,13 @@ import {
   Calendar,
   Clock,
   CalendarRange,
-  ChevronDown
+  ChevronDown,
+  UserCheck
 } from 'lucide-react';
 
 interface LeadsPageProps {
   tenantId?: string;
+  currentUser?: CurrentUser | null;
   onLeadClick: (lead: Lead) => void;
   onConvertToBill: (lead: Lead) => void;
   onUpdateCategory?: (leadId: string, category: string) => void;
@@ -26,6 +28,7 @@ interface LeadsPageProps {
 
 export const LeadsPage: React.FC<LeadsPageProps> = ({ 
   tenantId, 
+  currentUser,
   onLeadClick, 
   onConvertToBill,
   onUpdateCategory,
@@ -34,11 +37,16 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Team Members for Staff Assignment & Filter
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const canAssign = !currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin';
+
   // Filter States
   const [search, setSearch] = useState('');
   const [selectedStage, setSelectedStage] = useState('all');
   const [selectedSource, setSelectedSource] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedStaff, setSelectedStaff] = useState('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'last_7_days' | 'last_30_days' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -56,6 +64,17 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [newDealValue, setNewDealValue] = useState<number>(0);
   const [isCreating, setIsCreating] = useState(false);
 
+  // Load team members for assignment
+  useEffect(() => {
+    api.getTeamMembers(tenantId || 'demo_tenant_01')
+      .then((res) => {
+        if (res && res.members) {
+          setTeamMembers(res.members.filter((m: TeamMember) => m.is_active));
+        }
+      })
+      .catch((err) => console.error('Failed to load team members:', err));
+  }, [tenantId]);
+
   const loadLeads = () => {
     setLoading(true);
     api.getLeads(
@@ -66,7 +85,8 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
       selectedCategory === 'all' ? '' : selectedCategory,
       dateFilter === 'all' ? '' : dateFilter,
       customStartDate,
-      customEndDate
+      customEndDate,
+      selectedStaff === 'all' ? '' : selectedStaff
     )
       .then((res) => {
         if (res && res.items) setLeads(res.items);
@@ -80,7 +100,17 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
       loadLeads();
     }, 250);
     return () => clearTimeout(timer);
-  }, [tenantId, search, selectedStage, selectedSource, selectedCategory, dateFilter, customStartDate, customEndDate]);
+  }, [tenantId, search, selectedStage, selectedSource, selectedCategory, selectedStaff, dateFilter, customStartDate, customEndDate]);
+
+  const handleAssignLead = async (leadId: string, staffId: string) => {
+    try {
+      const finalUserId = staffId === 'unassigned' ? null : staffId;
+      await api.assignLead(leadId, finalUserId, undefined, currentUser?.full_name || 'Admin', tenantId);
+      loadLeads();
+    } catch (err) {
+      console.error('Failed to assign lead:', err);
+    }
+  };
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,13 +236,14 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
     }
   };
 
-  const hasActiveFilters = search || selectedStage !== 'all' || selectedSource !== 'all' || selectedCategory !== 'all' || dateFilter !== 'all';
+  const hasActiveFilters = search || selectedStage !== 'all' || selectedSource !== 'all' || selectedCategory !== 'all' || selectedStaff !== 'all' || dateFilter !== 'all';
 
   const resetAllFilters = () => {
     setSearch('');
     setSelectedStage('all');
     setSelectedSource('all');
     setSelectedCategory('all');
+    setSelectedStaff('all');
     setDateFilter('all');
     setCustomStartDate('');
     setCustomEndDate('');
@@ -300,6 +331,23 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
               <option value="HOT">🔥 Hot (Immediate Close)</option>
               <option value="WARM">☀️ Warm (In Discussion)</option>
               <option value="COLD">❄️ Cold (Nurture)</option>
+            </select>
+          </div>
+
+          {/* Filter: Staff / Assigned Member */}
+          <div className="w-full md:w-44 shrink-0">
+            <select
+              value={selectedStaff}
+              onChange={(e) => setSelectedStaff(e.target.value)}
+              className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-xs bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
+            >
+              <option value="all">👤 All Staff Members</option>
+              <option value="unassigned">⚠️ Unassigned Leads</option>
+              {teamMembers.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.full_name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -431,6 +479,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                   <th className="p-3.5">Phone & Email</th>
                   <th className="p-3.5">Lead Source</th>
                   <th className="p-3.5">Category (Hot/Cold)</th>
+                  <th className="p-3.5">Assigned Staff</th>
                   <th className="p-3.5">Pipeline Status</th>
                   <th className="p-3.5">Product Inquired</th>
                   <th className="p-3.5 text-right">Deal Value</th>
@@ -494,6 +543,38 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                             <option value="COLD">❄️ Cold</option>
                           </select>
                         </div>
+                      </td>
+
+                      {/* Assigned Staff (with 1-Click Dropdown for Admin/Manager) */}
+                      <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                        {canAssign ? (
+                          <select
+                            value={l.assigned_to_user_id || 'unassigned'}
+                            onChange={(e) => handleAssignLead(leadId, e.target.value)}
+                            className="text-[10px] font-semibold bg-indigo-50/70 hover:bg-indigo-100/90 text-indigo-900 rounded-lg px-2 py-1 border border-indigo-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px] truncate shadow-2xs"
+                            title="Assign to Staff / Sales Rep"
+                          >
+                            <option value="unassigned">⚠️ Unassigned</option>
+                            {teamMembers.map((m) => (
+                              <option key={m._id} value={m._id}>
+                                👤 {m.full_name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div>
+                            {l.assigned_to_user_name ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                                <span>👤</span>
+                                <span className="truncate max-w-[100px]">{l.assigned_to_user_name}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                Unassigned
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Pipeline Status (Stage) with Quick Dropdown */}

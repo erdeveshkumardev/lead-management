@@ -402,6 +402,7 @@ export function App() {
             {currentTab === 'leads' && (
               <LeadsPage
                 tenantId={activeTenantId}
+                currentUser={currentUser}
                 onLeadClick={(lead) => setSelectedLeadForDetail(lead)}
                 onConvertToBill={(lead) => setSelectedLeadForBill(lead)}
                 onUpdateCategory={handleUpdateCategory}
@@ -436,6 +437,8 @@ export function App() {
       {selectedLeadForDetail && (
         <LeadDetailModal
           lead={selectedLeadForDetail}
+          currentUser={currentUser}
+          tenantId={activeTenantId}
           onClose={() => setSelectedLeadForDetail(null)}
           onConvertToBill={(lead) => {
             setSelectedLeadForDetail(null);

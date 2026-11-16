@@ -145,36 +145,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           {/* Secure Form */}
           <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
             <div>
-              <label className="text-slate-300 font-semibold block mb-1.5">Email Address</label>
+              <label className="text-slate-200 font-bold block mb-1.5 text-xs">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type="email"
                   required
                   placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  className="login-input dark-input w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-slate-300 font-semibold block mb-1.5">Password</label>
+              <label className="text-slate-200 font-bold block mb-1.5 text-xs">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                  className="login-input dark-input w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

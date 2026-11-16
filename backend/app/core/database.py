@@ -1,6 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 import logging
+import asyncio
+import sys
 
 from app.core.config import settings
 from app.models.counter import SequenceCounter
@@ -15,39 +17,69 @@ from app.models.masters import GlobalMasterItem
 logger = logging.getLogger(__name__)
 
 db_client: AsyncIOMotorClient = None
+_is_db_initialized: bool = False
 
 
-async def init_db():
-    global db_client
-    try:
-        logger.info(f"Connecting to MongoDB at {settings.MONGODB_URL}")
-        db_client = AsyncIOMotorClient(settings.MONGODB_URL)
-        database = db_client[settings.DATABASE_NAME]
+async def init_db(max_retries: int = 5, retry_delay: float = 2.0):
+    global db_client, _is_db_initialized
+    if _is_db_initialized:
+        return
 
-        # Initialize Beanie ODM with all models
-        await init_beanie(
-            database=database,
-            document_models=[
-                SequenceCounter,
-                Tenant,
-                User,
-                CustomFieldDefinition,
-                Lead,
-                Product,
-                Invoice,
-                GlobalMasterItem,
-            ],
-        )
-        logger.info("MongoDB and Beanie initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to initialize MongoDB: {e}")
-        # Allow app to start even if MongoDB is not immediately running so docs can be inspected
-        # In production this will raise
+    print(f"🔄 [DB] Connecting to MongoDB at {settings.MONGODB_URL[:30]}... (database: {settings.DATABASE_NAME})", flush=True)
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            db_client = AsyncIOMotorClient(
+                settings.MONGODB_URL,
+                serverSelectionTimeoutMS=10000,
+                connectTimeoutMS=10000
+            )
+            database = db_client[settings.DATABASE_NAME]
+
+            # Ping MongoDB cluster to confirm reachable network connection
+            await db_client.admin.command('ping')
+            print("✅ [DB] MongoDB Atlas connection verified via ping!", flush=True)
+
+            # Initialize Beanie ODM with all models
+            await init_beanie(
+                database=database,
+                document_models=[
+                    SequenceCounter,
+                    Tenant,
+                    User,
+                    CustomFieldDefinition,
+                    Lead,
+                    Product,
+                    Invoice,
+                    GlobalMasterItem,
+                ],
+            )
+            _is_db_initialized = True
+            print("✅ [DB] MongoDB and Beanie initialized successfully.", flush=True)
+            return
+        except Exception as e:
+            print(f"⚠️ [DB Attempt {attempt}/{max_retries}] MongoDB / Beanie connection error: {e}", file=sys.stderr, flush=True)
+            if attempt < max_retries:
+                print(f"⏳ [DB] Retrying in {retry_delay}s...", flush=True)
+                await asyncio.sleep(retry_delay)
+            else:
+                import traceback
+                traceback.print_exc()
+                raise e
+
+
+async def ensure_db_initialized():
+    global _is_db_initialized
+    if not _is_db_initialized:
+        await init_db(max_retries=3, retry_delay=1.0)
 
 
 async def close_db():
-    global db_client
+    global db_client, _is_db_initialized
     if db_client:
+        db_client.close()
+        _is_db_initialized = False
+        print("MongoDB connection closed.", flush=True)
         db_client.close()
         logger.info("MongoDB connection closed.")
 

@@ -1,9 +1,12 @@
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.database import init_db, close_db
+from app.core.database import init_db, close_db, ensure_db_initialized
 from app.api.v1.router import api_router
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
 @asynccontextmanager
@@ -21,6 +24,13 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Safety Middleware: Ensure Beanie ODM is always initialized before processing API queries
+@app.middleware("http")
+async def db_readiness_middleware(request: Request, call_next):
+    if not request.url.path.endswith("/healthz") and request.url.path != "/":
+        await ensure_db_initialized()
+    return await call_next(request)
 
 # Setup CORS
 app.add_middleware(

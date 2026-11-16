@@ -30,7 +30,7 @@ async def seed_initial_accounts():
     Creates default Super Admin, Demo Company, and Staff for quick testing.
     """
     # 1. Super Admin
-    super_admin = await User.find_one(User.role == "super_admin")
+    super_admin = await User.find_one({"role": "super_admin"})
     if not super_admin:
         super_admin = User(
             tenant_id="system",
@@ -43,7 +43,7 @@ async def seed_initial_accounts():
         await super_admin.insert()
 
     # 2. Default Company
-    tenant = await Tenant.find_one(Tenant.company_name == "Apex Machineries Pvt Ltd")
+    tenant = await Tenant.find_one({"company_name": "Apex Machineries Pvt Ltd"})
     if not tenant:
         tenant = Tenant(
             company_name="Apex Machineries Pvt Ltd",
@@ -65,7 +65,7 @@ async def seed_initial_accounts():
     tenant_id = str(tenant.id)
 
     # 3. Company Admin
-    comp_admin = await User.find_one(User.email == "admin@apexmachineries.com")
+    comp_admin = await User.find_one({"email": "admin@apexmachineries.com"})
     if not comp_admin:
         comp_admin = User(
             tenant_id=tenant_id,
@@ -79,7 +79,7 @@ async def seed_initial_accounts():
         await comp_admin.insert()
 
     # 4. Sales Staff
-    staff_user = await User.find_one(User.email == "rajesh@apexmachineries.com")
+    staff_user = await User.find_one({"email": "rajesh@apexmachineries.com"})
     if not staff_user:
         staff_user = User(
             tenant_id=tenant_id,

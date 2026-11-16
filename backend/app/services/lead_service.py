@@ -45,14 +45,12 @@ async def assign_lead_round_robin(tenant_id: str) -> Tuple[Optional[str], Option
     Picks the agent with the lowest assigned lead count.
     """
     agents = await User.find(
-        User.tenant_id == tenant_id,
-        User.is_active == True,
-        User.role == "agent"
+        {"tenant_id": tenant_id, "is_active": True, "role": {"$in": ["agent", "staff"]}}
     ).sort("assigned_leads_count").to_list()
 
     if not agents:
         # Fallback to any active user (e.g. admin)
-        users = await User.find(User.tenant_id == tenant_id, User.is_active == True).to_list()
+        users = await User.find({"tenant_id": tenant_id, "is_active": True}).to_list()
         if users:
             return str(users[0].id), users[0].full_name
         return None, None
@@ -78,15 +76,15 @@ async def process_and_save_lead(dto: StandardLeadDTO) -> Tuple[Lead, bool]:
     # Deduplication check: Only deduplicate if a valid phone (>= 5 digits) or valid email exists
     existing_lead = None
     if norm_phone and len(norm_phone) >= 5:
-        existing_lead = await Lead.find_one(
-            Lead.tenant_id == dto.tenant_id,
-            Lead.phone == norm_phone
-        )
+        existing_lead = await Lead.find_one({
+            "tenant_id": dto.tenant_id,
+            "phone": norm_phone
+        })
     elif dto.email and "@" in str(dto.email):
-        existing_lead = await Lead.find_one(
-            Lead.tenant_id == dto.tenant_id,
-            Lead.email == str(dto.email).strip().lower()
-        )
+        existing_lead = await Lead.find_one({
+            "tenant_id": dto.tenant_id,
+            "email": str(dto.email).strip().lower()
+        })
 
     if existing_lead:
         # Append duplicate inquiry note to existing lead's timeline

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: leadcrm-config
+  namespace: leadcrm
+data:
+  PROJECT_NAME: "Lead-to-Cash LMS"
+  API_V1_STR: "/api/v1"
+  DATABASE_NAME: "LeadCRM"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
+  BACKEND_CORS_ORIGINS: "[\"https://leadcrm.travistas.in\", \"http://leadcrm.travistas.in\", \"http://localhost:5173\", \"http://localhost:3000\"]"

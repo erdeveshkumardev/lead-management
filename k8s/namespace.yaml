@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: leadcrm
+  labels:
+    app.kubernetes.io/name: leadcrm

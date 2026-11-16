@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadcrm-backend
+    restart: always
+    environment:
+      - PROJECT_NAME=Lead-to-Cash LMS
+      - API_V1_STR=/api/v1
+      - SECRET_KEY=supersecret_jwt_key_change_in_production
+      - ACCESS_TOKEN_EXPIRE_MINUTES=10080
+      - MONGODB_URL=mongodb+srv://erdeveshkumardev_db_user:JnS4BZ2wHTfjdWcD@leadcrm.kkdslp4.mongodb.net/
+      - DATABASE_NAME=LeadCRM
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000", "http://localhost", "https://leadcrm.travistas.in"]
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - leadcrm-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: leadcrm-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - leadcrm-net
+
+networks:
+  leadcrm-net:
+    driver: bridge

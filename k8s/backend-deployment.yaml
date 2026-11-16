@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: leadcrm
+  labels:
+    app: leadcrm-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: leadcrm-backend
+  template:
+    metadata:
+      labels:
+        app: leadcrm-backend
+    spec:
+      containers:
+        - name: backend
+          image: leadcrm-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: leadcrm-config
+            - secretRef:
+                name: leadcrm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: leadcrm
+  labels:
+    app: leadcrm-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: leadcrm-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

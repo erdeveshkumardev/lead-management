@@ -43,3 +43,8 @@ def root():
         "docs_url": "/docs",
         "api_v1": settings.API_V1_STR
     }
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}

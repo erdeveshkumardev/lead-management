@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: leadcrm
+  labels:
+    app: leadcrm-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: leadcrm-frontend
+  template:
+    metadata:
+      labels:
+        app: leadcrm-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: leadcrm-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: leadcrm
+  labels:
+    app: leadcrm-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: leadcrm-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

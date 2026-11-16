@@ -1,9 +1,9 @@
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Query
 from app.core.database import get_document_by_id
 from app.models.tenant import Tenant
-from app.models.lead import Lead, TimelineItem
+from app.models.lead import Lead, TimelineItem, FollowUpItem
 from app.models.user import User
 from app.schemas.lead import (
     LeadCreateRequest,
@@ -27,6 +27,20 @@ class LeadAssignRequest(BaseModel):
     assigned_by_name: Optional[str] = None
 
 
+class ScheduleFollowUpRequest(BaseModel):
+    scheduled_at: str  # ISO string e.g. "2026-11-17T11:00:00"
+    follow_up_type: str = "call"  # "call", "whatsapp", "meeting", "email", "site_visit"
+    note: str
+    user_id: Optional[str] = None
+    user_name: Optional[str] = None
+
+
+class CompleteFollowUpRequest(BaseModel):
+    note: Optional[str] = None
+    completed_by_id: Optional[str] = None
+    completed_by_name: Optional[str] = None
+
+
 @router.get("/")
 async def list_leads(
     tenant_id: str,
@@ -34,6 +48,7 @@ async def list_leads(
     source: Optional[str] = None,
     category: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    follow_up_filter: Optional[str] = None,
     date_filter: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -77,6 +92,25 @@ async def list_leads(
             {"product_inquired": {"$regex": search, "$options": "i"}},
         ]
 
+    # Follow-up Filtering
+    now = datetime.utcnow()
+    ist_offset = timedelta(hours=5, minutes=30)
+    now_ist = now + ist_offset
+    start_today_ist = datetime(now_ist.year, now_ist.month, now_ist.day) - ist_offset
+    end_today_ist = start_today_ist + timedelta(days=1) - timedelta(microseconds=1)
+
+    if follow_up_filter == "today":
+        query["next_follow_up.scheduled_at"] = {"$gte": start_today_ist, "$lte": end_today_ist}
+        query["next_follow_up.status"] = "PENDING"
+    elif follow_up_filter == "overdue":
+        query["next_follow_up.scheduled_at"] = {"$lt": start_today_ist}
+        query["next_follow_up.status"] = "PENDING"
+    elif follow_up_filter == "upcoming":
+        query["next_follow_up.scheduled_at"] = {"$gt": end_today_ist}
+        query["next_follow_up.status"] = "PENDING"
+    elif follow_up_filter in ["has_followup", "followup"]:
+        query["next_follow_up"] = {"$ne": None}
+
     # Date filter
     now = datetime.utcnow()
     date_query: Dict[str, Any] = {}
@@ -109,13 +143,14 @@ async def list_leads(
 @router.get("/kanban")
 async def get_kanban_board(
     tenant_id: str,
+    assigned_to: Optional[str] = None,
     date_filter: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ):
     """
     Returns leads grouped dynamically by the company's custom pipeline stages.
-    Supports date filtering: today, last_7_days, last_30_days, or custom date ranges.
+    Supports staff isolation (assigned_to) and date filtering.
     """
     tenant = await get_document_by_id(Tenant, tenant_id)
     if not tenant:
@@ -138,6 +173,16 @@ async def get_kanban_board(
         query["tenant_id"] = {"$in": allowed_ids}
     else:
         query["tenant_id"] = tenant_id
+
+    if assigned_to and assigned_to != "all":
+        if assigned_to == "unassigned":
+            query["$or"] = [
+                {"assigned_to_user_id": None},
+                {"assigned_to_user_id": {"$exists": False}},
+                {"assigned_to_user_id": ""}
+            ]
+        else:
+            query["assigned_to_user_id"] = assigned_to
 
     # Date filtering
     now = datetime.utcnow()
@@ -197,10 +242,84 @@ async def create_lead_manual(tenant_id: str, payload: LeadCreateRequest):
     return {"lead": lead, "is_duplicate": is_duplicate}
 
 
+@router.get("/followups/summary")
+async def get_followups_summary(
+    tenant_id: str,
+    assigned_to: Optional[str] = None
+):
+    """
+    Returns counts and top leads for Today, Overdue, and Upcoming follow-ups.
+    Supports staff isolation filtering by assigned_to.
+    """
+    tenant = await get_document_by_id(Tenant, tenant_id)
+    if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"company_name": tenant_id}, {"slug": tenant_id}]})
+
+    if tenant:
+        allowed_ids = [str(tenant.id)]
+        if tenant.slug in ["apex-machineries", "demo_tenant_01"] or tenant_id == "demo_tenant_01":
+            allowed_ids.append("demo_tenant_01")
+        query: Dict[str, Any] = {"tenant_id": {"$in": allowed_ids}}
+    else:
+        query = {"tenant_id": tenant_id}
+
+    if assigned_to and assigned_to != "all":
+        query["assigned_to_user_id"] = assigned_to
+
+    now = datetime.utcnow()
+    ist_offset = timedelta(hours=5, minutes=30)
+    now_ist = now + ist_offset
+    start_today_ist = datetime(now_ist.year, now_ist.month, now_ist.day) - ist_offset
+    end_today_ist = start_today_ist + timedelta(days=1) - timedelta(microseconds=1)
+
+    base_query = {**query, "next_follow_up.status": "PENDING"}
+
+    # Overdue Follow-ups (scheduled before start of today IST)
+    overdue_q = {**base_query, "next_follow_up.scheduled_at": {"$lt": start_today_ist}}
+    overdue_leads = await Lead.find(overdue_q).sort("next_follow_up.scheduled_at").limit(20).to_list()
+    overdue_count = await Lead.find(overdue_q).count()
+
+    # Today's Follow-ups (scheduled between start and end of today IST)
+    today_q = {**base_query, "next_follow_up.scheduled_at": {"$gte": start_today_ist, "$lte": end_today_ist}}
+    today_leads = await Lead.find(today_q).sort("next_follow_up.scheduled_at").limit(20).to_list()
+    today_count = await Lead.find(today_q).count()
+
+    # Upcoming Follow-ups (scheduled after end of today IST)
+    upcoming_q = {**base_query, "next_follow_up.scheduled_at": {"$gt": end_today_ist}}
+    upcoming_leads = await Lead.find(upcoming_q).sort("next_follow_up.scheduled_at").limit(20).to_list()
+    upcoming_count = await Lead.find(upcoming_q).count()
+
+    return {
+        "today_count": today_count,
+        "overdue_count": overdue_count,
+        "upcoming_count": upcoming_count,
+        "total_active": today_count + overdue_count + upcoming_count,
+        "today_leads": today_leads,
+        "overdue_leads": overdue_leads,
+        "upcoming_leads": upcoming_leads
+    }
+
+
+async def verify_lead_tenant_access(lead: Optional[Lead], tenant_id: str) -> bool:
+    if not lead:
+        return False
+    if lead.tenant_id == tenant_id:
+        return True
+    tenant = await get_document_by_id(Tenant, tenant_id)
+    if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"company_name": tenant_id}, {"slug": tenant_id}]})
+    allowed_ids = [tenant_id]
+    if tenant:
+        allowed_ids.append(str(tenant.id))
+        if tenant.slug in ["apex-machineries", "demo_tenant_01"] or tenant_id == "demo_tenant_01":
+            allowed_ids.append("demo_tenant_01")
+    return lead.tenant_id in allowed_ids
+
+
 @router.get("/{lead_id}")
 async def get_lead(lead_id: str, tenant_id: str):
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead or lead.tenant_id != tenant_id:
+    if not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
 
@@ -208,7 +327,7 @@ async def get_lead(lead_id: str, tenant_id: str):
 @router.patch("/{lead_id}")
 async def update_lead(lead_id: str, tenant_id: str, payload: LeadUpdateRequest):
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead or lead.tenant_id != tenant_id:
+    if not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     update_dict = payload.model_dump(exclude_unset=True)
@@ -229,14 +348,16 @@ async def update_lead(lead_id: str, tenant_id: str, payload: LeadUpdateRequest):
 @router.post("/{lead_id}/stage")
 async def update_lead_stage(lead_id: str, tenant_id: str, payload: LeadStageUpdateRequest):
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead or lead.tenant_id != tenant_id:
+    if not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     old_stage = lead.stage
     lead.stage = payload.stage
-    lead.updated_at = datetime.utcnow()
+    now = datetime.utcnow()
+    lead.updated_at = now
 
     # Log to activity timeline
+    stage_display = payload.stage.replace('_', ' ').title()
     note = f"Stage changed from {old_stage} to {payload.stage}"
     if payload.note:
         note += f". Note: {payload.note}"
@@ -249,6 +370,24 @@ async def update_lead_stage(lead_id: str, tenant_id: str, payload: LeadStageUpda
             performed_by_name="Agent"
         )
     )
+
+    # AUTO-RESOLVE ACTIVE / OVERDUE FOLLOW-UP:
+    # When user takes an action such as sending a proposal or advancing stage,
+    # any pending/overdue follow-up up to now is automatically marked completed!
+    for f in lead.follow_ups:
+        if f.status == "PENDING" and f.scheduled_at <= now:
+            f.status = "COMPLETED"
+            f.completed_at = now
+            f.completion_note = f"Auto-resolved: Stage moved to {stage_display}"
+
+    # Only future follow-ups scheduled strictly after now remain pending
+    remaining = [f for f in lead.follow_ups if f.status == "PENDING" and f.scheduled_at > now]
+    if remaining:
+        remaining.sort(key=lambda x: x.scheduled_at)
+        lead.next_follow_up = remaining[0]
+    else:
+        lead.next_follow_up = None
+
     await lead.save()
     return {"status": "success", "lead": lead}
 
@@ -256,7 +395,7 @@ async def update_lead_stage(lead_id: str, tenant_id: str, payload: LeadStageUpda
 @router.post("/{lead_id}/category")
 async def update_lead_category(lead_id: str, tenant_id: str, payload: LeadCategoryUpdateRequest):
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead or lead.tenant_id != tenant_id:
+    if not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     old_cat = getattr(lead, "category", "WARM")
@@ -282,9 +421,10 @@ async def update_lead_category(lead_id: str, tenant_id: str, payload: LeadCatego
 @router.post("/{lead_id}/activity")
 async def add_lead_activity(lead_id: str, tenant_id: str, payload: LeadAddActivityRequest):
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead or lead.tenant_id != tenant_id:
+    if not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    now = datetime.utcnow()
     item = TimelineItem(
         activity_type=payload.activity_type,
         note=payload.note,
@@ -293,7 +433,24 @@ async def add_lead_activity(lead_id: str, tenant_id: str, payload: LeadAddActivi
         metadata=payload.metadata
     )
     lead.timeline.append(item)
-    lead.updated_at = datetime.utcnow()
+
+    # AUTO-RESOLVE ACTIVE / OVERDUE FOLLOW-UP:
+    # Interaction was performed (e.g. Call logged, WhatsApp sent, Notes taken)
+    for f in lead.follow_ups:
+        if f.status == "PENDING" and f.scheduled_at <= now:
+            f.status = "COMPLETED"
+            f.completed_at = now
+            f.completion_note = f"Auto-resolved: Action logged ({payload.activity_type}) - {payload.note}"
+
+    # Only future follow-ups scheduled strictly after now remain pending
+    remaining = [f for f in lead.follow_ups if f.status == "PENDING" and f.scheduled_at > now]
+    if remaining:
+        remaining.sort(key=lambda x: x.scheduled_at)
+        lead.next_follow_up = remaining[0]
+    else:
+        lead.next_follow_up = None
+
+    lead.updated_at = now
     await lead.save()
     return {"status": "success", "lead": lead}
 
@@ -305,7 +462,7 @@ async def assign_lead(lead_id: str, tenant_id: str, payload: LeadAssignRequest):
         tenant = await Tenant.find_one({"$or": [{"company_name": tenant_id}, {"slug": tenant_id}]})
 
     lead = await get_document_by_id(Lead, lead_id)
-    if not lead:
+    if not lead or not await verify_lead_tenant_access(lead, tenant_id):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     # Tenant verification with alias support
@@ -375,3 +532,118 @@ async def assign_lead(lead_id: str, tenant_id: str, payload: LeadAssignRequest):
         "message": f"Lead assigned successfully to {lead.assigned_to_user_name or 'Unassigned'}",
         "lead": lead
     }
+
+
+@router.post("/{lead_id}/followup")
+async def schedule_follow_up(lead_id: str, tenant_id: str, payload: ScheduleFollowUpRequest):
+    """
+    Schedule a follow-up (Call, WhatsApp, Meeting, Email, Visit) for this lead.
+    Sets next_follow_up, records in follow_ups array, and adds to CRM activity timeline.
+    """
+    lead = await get_document_by_id(Lead, lead_id)
+    if not lead or not await verify_lead_tenant_access(lead, tenant_id):
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    try:
+        raw_dt = payload.scheduled_at.replace("Z", "+00:00")
+        sched_dt = datetime.fromisoformat(raw_dt)
+        if sched_dt.tzinfo is not None:
+            sched_dt = sched_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid scheduled_at datetime format: {e}")
+
+    import uuid
+    followup_item = FollowUpItem(
+        id=str(uuid.uuid4())[:8],
+        scheduled_at=sched_dt,
+        follow_up_type=payload.follow_up_type.lower(),
+        note=payload.note,
+        status="PENDING",
+        assigned_to_user_id=payload.user_id or lead.assigned_to_user_id,
+        assigned_to_user_name=payload.user_name or lead.assigned_to_user_name,
+        created_at=datetime.utcnow()
+    )
+
+    lead.next_follow_up = followup_item
+    lead.follow_ups.append(followup_item)
+    lead.updated_at = datetime.utcnow()
+
+    type_labels = {
+        "call": "📞 Phone Call",
+        "whatsapp": "💬 WhatsApp Message",
+        "meeting": "👥 Direct Meeting",
+        "email": "✉️ Email Follow-up",
+        "site_visit": "🏢 Site Visit"
+    }
+    type_display = type_labels.get(payload.follow_up_type.lower(), payload.follow_up_type.title())
+
+    timeline_note = f"Follow-up scheduled: {type_display} on {payload.scheduled_at}. Note: {payload.note}"
+    lead.timeline.append(
+        TimelineItem(
+            activity_type="FOLLOWUP_SCHEDULED",
+            note=timeline_note,
+            performed_by_id=payload.user_id or "STAFF",
+            performed_by_name=payload.user_name or lead.assigned_to_user_name or "Sales Team"
+        )
+    )
+
+    await lead.save()
+    return {"status": "success", "message": "Follow-up scheduled successfully", "lead": lead}
+
+
+@router.post("/{lead_id}/followup/complete")
+async def complete_follow_up(lead_id: str, tenant_id: str, payload: CompleteFollowUpRequest):
+    """
+    Mark an active follow-up as completed, update timestamps, and record notes.
+    """
+    lead = await get_document_by_id(Lead, lead_id)
+    if not lead or not await verify_lead_tenant_access(lead, tenant_id):
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    now = datetime.utcnow()
+    comp_by = payload.completed_by_name or lead.assigned_to_user_name or "Sales Staff"
+
+    if lead.next_follow_up:
+        lead.next_follow_up.status = "COMPLETED"
+        lead.next_follow_up.completed_at = now
+        lead.next_follow_up.completion_note = payload.note or "Completed"
+
+    completed_any = False
+    for f in lead.follow_ups:
+        if f.status == "PENDING" and f.scheduled_at <= now:
+            f.status = "COMPLETED"
+            f.completed_at = now
+            f.completion_note = payload.note or "Completed"
+            completed_any = True
+
+    if not completed_any:
+        for f in lead.follow_ups:
+            if f.status == "PENDING":
+                f.status = "COMPLETED"
+                f.completed_at = now
+                f.completion_note = payload.note or "Completed"
+                break
+
+    remaining = [f for f in lead.follow_ups if f.status == "PENDING"]
+    if remaining:
+        remaining.sort(key=lambda x: x.scheduled_at)
+        lead.next_follow_up = remaining[0]
+    else:
+        lead.next_follow_up = None
+
+    timeline_note = f"Follow-up marked as COMPLETED by {comp_by}"
+    if payload.note:
+        timeline_note += f". Completion remarks: {payload.note}"
+
+    lead.timeline.append(
+        TimelineItem(
+            activity_type="FOLLOWUP_COMPLETED",
+            note=timeline_note,
+            performed_by_id=payload.completed_by_id or "STAFF",
+            performed_by_name=comp_by
+        )
+    )
+    lead.updated_at = now
+    await lead.save()
+    return {"status": "success", "message": "Follow-up marked as completed", "lead": lead}
+

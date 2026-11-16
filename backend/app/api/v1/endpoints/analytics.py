@@ -10,7 +10,7 @@ router = APIRouter(prefix="/analytics", tags=["Dashboard Analytics"])
 
 
 @router.get("/dashboard")
-async def get_dashboard_metrics(tenant_id: str):
+async def get_dashboard_metrics(tenant_id: str, assigned_to: Optional[str] = None):
     """
     Returns real-time analytics for the specific company dashboard:
     - Total leads, converted leads, win rate %
@@ -18,6 +18,7 @@ async def get_dashboard_metrics(tenant_id: str):
     - Sales staff performance & lead status breakdown
     - Recent 10 inquiries list
     - Financial billing metrics
+    Supports staff isolation filtering by assigned_to.
     """
     tenant = await get_document_by_id(Tenant, tenant_id)
     if not tenant:
@@ -29,7 +30,9 @@ async def get_dashboard_metrics(tenant_id: str):
         if tenant.slug in ["apex-machineries", "demo_tenant_01", None] or tenant.company_name == "Apex Machineries Pvt Ltd":
             allowed_ids.append("demo_tenant_01")
 
-    query = {"tenant_id": {"$in": allowed_ids}}
+    query: Dict[str, Any] = {"tenant_id": {"$in": allowed_ids}}
+    if assigned_to and assigned_to != "all":
+        query["assigned_to_user_id"] = assigned_to
 
     # Total Leads
     total_leads = await Lead.find(query).count()
@@ -115,10 +118,13 @@ async def get_dashboard_metrics(tenant_id: str):
         if l.conversion_info and l.conversion_info.is_converted:
             s_entry["converted_count"] += 1
 
-    staff_summary_list = sorted(
-        staff_dict.values(),
-        key=lambda x: (x["staff_id"] == "unassigned", -x["total_leads"])
-    )
+    if assigned_to and assigned_to != "all":
+        staff_summary_list = [s for s in staff_dict.values() if s["staff_id"] == assigned_to]
+    else:
+        staff_summary_list = sorted(
+            staff_dict.values(),
+            key=lambda x: (x["staff_id"] == "unassigned", -x["total_leads"])
+        )
 
     # Recent Leads (Top 10)
     recent_leads = leads[:10]

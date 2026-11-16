@@ -15,7 +15,7 @@ import { GlobalMastersPortal } from './pages/superadmin/GlobalMastersPortal';
 import { CompanyMastersPage } from './pages/masters/CompanyMastersPage';
 import { TeamManager } from './pages/team/TeamManager';
 import { Lead, PipelineStage, CurrentUser, TenantInfo, api } from './services/api';
-import { Zap, X, CheckCircle2, Sliders, ShieldCheck, Building2 } from 'lucide-react';
+import { Zap, X, CheckCircle2, Sliders, ShieldCheck, Building2, Bell, ChevronRight, AlertCircle } from 'lucide-react';
 
 export function App() {
   // Current Logged-in User & Tenant from localStorage (Session persistence)
@@ -48,6 +48,13 @@ export function App() {
 
   const activeTenantId = tenantInfo?.id || currentUser?.tenant_id || 'demo_tenant_01';
 
+  const [followUpSummary, setFollowUpSummary] = useState<{
+    today_count: number;
+    overdue_count: number;
+    upcoming_count: number;
+    total_active: number;
+  }>({ today_count: 0, overdue_count: 0, upcoming_count: 0, total_active: 0 });
+
   // Load custom pipeline stages per company
   const loadStages = async (tenantId = activeTenantId) => {
     try {
@@ -61,9 +68,27 @@ export function App() {
     }
   };
 
+  const loadFollowUpSummary = async (tenantId = activeTenantId) => {
+    try {
+      const isStaff = currentUser?.role === 'staff';
+      const res = await api.getFollowupsSummary(tenantId, isStaff ? currentUser?.id : undefined);
+      if (res) {
+        setFollowUpSummary({
+          today_count: res.today_count || 0,
+          overdue_count: res.overdue_count || 0,
+          upcoming_count: res.upcoming_count || 0,
+          total_active: res.total_active || 0,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load follow-up summary:', err);
+    }
+  };
+
   const loadKanban = async (tenantId = activeTenantId) => {
     try {
-      const data = await api.getKanbanBoard(tenantId);
+      const isStaff = currentUser?.role === 'staff';
+      const data = await api.getKanbanBoard(tenantId, isStaff ? currentUser?.id : undefined);
       setKanbanData(data);
     } catch (err) {
       console.error('Failed to load kanban:', err);
@@ -74,12 +99,14 @@ export function App() {
     if (currentUser) {
       loadStages(activeTenantId);
       loadKanban(activeTenantId);
+      loadFollowUpSummary(activeTenantId);
     }
   }, [currentUser, activeTenantId]);
 
   useEffect(() => {
     if (currentUser && (currentTab === 'kanban' || currentTab === 'dashboard')) {
       loadKanban(activeTenantId);
+      loadFollowUpSummary(activeTenantId);
     }
   }, [currentTab]);
 
@@ -171,6 +198,7 @@ export function App() {
         }
       }
       if (movedLead) {
+        movedLead = { ...movedLead, next_follow_up: null };
         nextData[nextStage] = [movedLead, ...(nextData[nextStage] || [])];
       }
       return nextData;
@@ -179,9 +207,11 @@ export function App() {
     try {
       await api.updateLeadStage(leadId, nextStage, undefined, activeTenantId);
       loadKanban(activeTenantId);
+      loadFollowUpSummary(activeTenantId);
     } catch (err) {
       console.error('Failed to update stage on server:', err);
       loadKanban(activeTenantId);
+      loadFollowUpSummary(activeTenantId);
     }
   };
 
@@ -356,8 +386,60 @@ export function App() {
                 </span>
               </div>
             )}
+
+            {/* Notification Bell (Follow-up Alerts) */}
+            {currentUser?.role !== 'super_admin' && (
+              <button
+                onClick={() => setCurrentTab('leads')}
+                className="relative p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 transition-colors cursor-pointer"
+                title={`${followUpSummary.today_count} Today, ${followUpSummary.overdue_count} Overdue Follow-ups`}
+              >
+                <Bell className="h-4 w-4" />
+                {(followUpSummary.today_count > 0 || followUpSummary.overdue_count > 0) && (
+                  <span className={`absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full text-[10px] font-black flex items-center justify-center text-white ${
+                    followUpSummary.overdue_count > 0 ? 'bg-rose-600 animate-pulse' : 'bg-amber-500'
+                  }`}>
+                    {followUpSummary.today_count + followUpSummary.overdue_count}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </header>
+
+        {/* Due Follow-ups Reminder Banner */}
+        {(followUpSummary.today_count > 0 || followUpSummary.overdue_count > 0) && currentUser?.role !== 'super_admin' && (
+          <div 
+            onClick={() => setCurrentTab('leads')}
+            className="mx-4 sm:mx-6 lg:mx-8 mt-3.5 p-3 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-indigo-500/15 border border-amber-500/30 rounded-2xl flex items-center justify-between cursor-pointer hover:border-amber-400/60 transition-all text-xs shadow-lg group shrink-0"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold shrink-0 border border-amber-400/30">
+                <Bell className="h-4 w-4 animate-bounce text-amber-400" />
+              </div>
+              <div>
+                <span className="font-extrabold text-amber-200 block text-xs">
+                  Follow-up Action Required!
+                </span>
+                <p className="text-slate-300 text-[11px]">
+                  {currentUser?.role === 'staff' ? 'You have' : 'Your sales team has'}{' '}
+                  {followUpSummary.today_count > 0 && (
+                    <strong className="text-amber-300 font-bold">{followUpSummary.today_count} follow-up{followUpSummary.today_count > 1 ? 's' : ''} due today</strong>
+                  )}
+                  {followUpSummary.today_count > 0 && followUpSummary.overdue_count > 0 && ' and '}
+                  {followUpSummary.overdue_count > 0 && (
+                    <strong className="text-rose-400 font-bold">{followUpSummary.overdue_count} overdue follow-up{followUpSummary.overdue_count > 1 ? 's' : ''}</strong>
+                  )}
+                  . Click here to open and contact them.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-300 group-hover:translate-x-1 transition-transform shrink-0">
+              <span>View Follow-ups</span>
+              <ChevronRight className="h-4 w-4" />
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Content Body */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-900/40">
@@ -378,6 +460,7 @@ export function App() {
             {currentTab === 'dashboard' && (
               <Dashboard
                 tenantId={activeTenantId}
+                currentUser={currentUser}
                 onNavigateToKanban={() => setCurrentTab('kanban')}
                 onNavigateToInvoices={() => setCurrentTab('invoices')}
                 onLeadClick={(lead) => setSelectedLeadForDetail(lead)}
@@ -429,6 +512,7 @@ export function App() {
           onClose={() => setSelectedLeadForBill(null)}
           onSuccess={() => {
             loadKanban(activeTenantId);
+            loadFollowUpSummary(activeTenantId);
           }}
         />
       )}
@@ -446,6 +530,7 @@ export function App() {
           }}
           onLeadUpdated={() => {
             loadKanban(activeTenantId);
+            loadFollowUpSummary(activeTenantId);
           }}
         />
       )}

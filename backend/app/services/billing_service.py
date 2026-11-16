@@ -261,6 +261,23 @@ async def create_invoice_from_lead(
             metadata={"document_type": document_type, "invoice_id": str(invoice.id), "amount": float(financials.grand_total)}
         )
     )
+
+    # Auto-resolve active/overdue follow-up since action has been taken (proposal/bill generated)
+    now = datetime.utcnow()
+    doc_label = "Proposal / Quotation" if document_type == "QUOTATION" else "Tax Invoice"
+    for f in lead.follow_ups:
+        if f.status == "PENDING" and f.scheduled_at <= now:
+            f.status = "COMPLETED"
+            f.completed_at = now
+            f.completion_note = f"Auto-resolved: {doc_label} #{doc_number} generated"
+
+    remaining = [f for f in lead.follow_ups if f.status == "PENDING" and f.scheduled_at > now]
+    if remaining:
+        remaining.sort(key=lambda x: x.scheduled_at)
+        lead.next_follow_up = remaining[0]
+    else:
+        lead.next_follow_up = None
+
     await lead.save()
 
     return invoice

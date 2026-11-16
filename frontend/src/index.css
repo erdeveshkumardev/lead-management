@@ -6,6 +6,62 @@
   body {
     @apply bg-slate-950 text-slate-100 font-sans antialiased;
   }
+
+  /* Universal high-contrast text fix for all form controls & dropdowns */
+  input, select, textarea {
+    color: #0f172a !important;
+    background-color: #ffffff;
+    color-scheme: light !important;
+  }
+
+  /* Native select dropdown options styling across all browsers */
+  select option {
+    color: #0f172a !important;
+    background-color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    padding: 8px 12px;
+  }
+
+  select option:checked {
+    background-color: #e0e7ff !important;
+    color: #3730a3 !important;
+  }
+
+  /* Ensure date picker inputs on chrome/edge/safari show crisp dark bold text */
+  input[type="datetime-local"],
+  input[type="date"],
+  input[type="time"] {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+  }
+
+  input[type="datetime-local"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="datetime-local"]::-webkit-datetime-edit-text,
+  input[type="datetime-local"]::-webkit-datetime-edit-month-field,
+  input[type="datetime-local"]::-webkit-datetime-edit-day-field,
+  input[type="datetime-local"]::-webkit-datetime-edit-year-field,
+  input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+  input[type="datetime-local"]::-webkit-datetime-edit-minute-field,
+  input[type="datetime-local"]::-webkit-datetime-edit-ampm-field {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.85;
+    filter: none;
+  }
+
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
 }
 
 /* Custom scrollbars */

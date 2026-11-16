@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, Lead } from '../services/api';
+import { api, Lead, CurrentUser } from '../services/api';
 import { 
   Users, 
   Receipt, 
@@ -7,16 +7,18 @@ import {
   Wallet, 
   ArrowUpRight, 
   Clock, 
-  Sparkles,
-  Phone,
-  Building2,
-  Calendar,
-  ChevronRight,
-  Zap
+  Sparkles, 
+  Phone, 
+  Building2, 
+  Calendar, 
+  ChevronRight, 
+  Zap,
+  UserCheck
 } from 'lucide-react';
 
 interface DashboardProps {
   tenantId?: string;
+  currentUser?: CurrentUser | null;
   onNavigateToKanban: () => void;
   onNavigateToInvoices: () => void;
   onLeadClick?: (lead: Lead) => void;
@@ -25,6 +27,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({
   tenantId,
+  currentUser,
   onNavigateToKanban,
   onNavigateToInvoices,
   onLeadClick,
@@ -33,9 +36,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const isStaff = currentUser?.role === 'staff';
+
   const loadMetrics = () => {
     setLoading(true);
-    api.getDashboardMetrics(tenantId)
+    api.getDashboardMetrics(tenantId, isStaff ? currentUser?.id : undefined)
       .then((res) => {
         setMetrics(res);
         setLoading(false);
@@ -48,7 +53,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     loadMetrics();
-  }, [tenantId]);
+  }, [tenantId, currentUser?.id]);
 
   if (loading) {
     return (

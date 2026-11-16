@@ -1,4 +1,34 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8002/api/v1';
+export const getApiBaseUrl = (): string => {
+  let url = (import.meta.env.VITE_API_URL || '').trim();
+
+  if (typeof window !== 'undefined') {
+    if (!url) {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        url = 'http://localhost:8002/api/v1';
+      } else {
+        url = `${window.location.origin}/api/v1`;
+      }
+    }
+
+    // AUTOMATIC MIXED CONTENT RESOLUTION:
+    // When the app is accessed over HTTPS (e.g. https://leadcrm.travistas.in),
+    // force HTTPS on all outgoing API calls so browsers do not block them as Mixed Content!
+    if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+      url = 'https://' + url.slice(7);
+    }
+  } else if (!url) {
+    url = 'http://localhost:8002/api/v1';
+  }
+
+  // Sanitize double slashes & trailing slashes safely (e.g. //api/v1 -> /api/v1)
+  const parts = url.split('://');
+  if (parts.length === 2) {
+    return `${parts[0]}://${parts[1].replace(/\/+/g, '/')}`.replace(/\/+$/, '');
+  }
+  return url.replace(/\/+/g, '/').replace(/\/+$/, '');
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const DEFAULT_TENANT_ID = 'demo_tenant_01';
 
@@ -18,6 +48,19 @@ export interface TenantInfo {
   plan_name: string;
   max_users_limit: number;
   gstin?: string;
+}
+
+export interface FollowUpItem {
+  id?: string;
+  scheduled_at: string;
+  follow_up_type: string;
+  note: string;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  assigned_to_user_id?: string;
+  assigned_to_user_name?: string;
+  created_at?: string;
+  completed_at?: string;
+  completion_note?: string;
 }
 
 export interface Lead {
@@ -51,6 +94,8 @@ export interface Lead {
     invoice_number?: string;
     converted_at?: string;
   };
+  next_follow_up?: FollowUpItem | null;
+  follow_ups?: FollowUpItem[];
   timeline: Array<{
     activity_type: string;
     note: string;
@@ -268,8 +313,10 @@ export const api = {
   },
 
   // Analytics
-  getDashboardMetrics: async (tenantId = DEFAULT_TENANT_ID) => {
-    const res = await fetch(`${API_BASE_URL}/analytics/dashboard?tenant_id=${tenantId}`);
+  getDashboardMetrics: async (tenantId = DEFAULT_TENANT_ID, assignedTo?: string) => {
+    const params = new URLSearchParams({ tenant_id: tenantId });
+    if (assignedTo && assignedTo !== 'all') params.append('assigned_to', assignedTo);
+    const res = await fetch(`${API_BASE_URL}/analytics/dashboard?${params.toString()}`);
     return res.json();
   },
 
@@ -283,7 +330,8 @@ export const api = {
     dateFilter = '',
     startDate = '',
     endDate = '',
-    assignedTo = ''
+    assignedTo = '',
+    followUpFilter = ''
   ) => {
     const params = new URLSearchParams({ tenant_id: tenantId });
     if (search) params.append('search', search);
@@ -291,10 +339,54 @@ export const api = {
     if (source && source !== 'all') params.append('source', source);
     if (category && category !== 'all') params.append('category', category);
     if (assignedTo && assignedTo !== 'all') params.append('assigned_to', assignedTo);
+    if (followUpFilter && followUpFilter !== 'all') params.append('follow_up_filter', followUpFilter);
     if (dateFilter && dateFilter !== 'all') params.append('date_filter', dateFilter);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const res = await fetch(`${API_BASE_URL}/leads/?${params.toString()}`);
+    return res.json();
+  },
+
+  getFollowupsSummary: async (tenantId = DEFAULT_TENANT_ID, assignedTo?: string) => {
+    const params = new URLSearchParams({ tenant_id: tenantId });
+    if (assignedTo && assignedTo !== 'all') params.append('assigned_to', assignedTo);
+    const res = await fetch(`${API_BASE_URL}/leads/followups/summary?${params.toString()}`);
+    return res.json();
+  },
+
+  scheduleFollowUp: async (
+    leadId: string,
+    payload: {
+      scheduled_at: string;
+      follow_up_type: string;
+      note: string;
+      user_id?: string;
+      user_name?: string;
+    },
+    tenantId = DEFAULT_TENANT_ID
+  ) => {
+    const res = await fetch(`${API_BASE_URL}/leads/${leadId}/followup?tenant_id=${tenantId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  completeFollowUp: async (
+    leadId: string,
+    payload: {
+      note?: string;
+      completed_by_id?: string;
+      completed_by_name?: string;
+    },
+    tenantId = DEFAULT_TENANT_ID
+  ) => {
+    const res = await fetch(`${API_BASE_URL}/leads/${leadId}/followup/complete?tenant_id=${tenantId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
     return res.json();
   },
 
@@ -328,11 +420,13 @@ export const api = {
 
   getKanbanBoard: async (
     tenantId = DEFAULT_TENANT_ID,
+    assignedTo?: string,
     dateFilter?: string,
     startDate?: string,
     endDate?: string
   ) => {
     const params = new URLSearchParams({ tenant_id: tenantId });
+    if (assignedTo && assignedTo !== 'all') params.append('assigned_to', assignedTo);
     if (dateFilter && dateFilter !== 'all') params.append('date_filter', dateFilter);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);

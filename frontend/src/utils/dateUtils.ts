@@ -6,12 +6,23 @@ export const parseUtcDate = (timestamp: string | Date | undefined | null): Date 
   if (!timestamp) return null;
   if (timestamp instanceof Date) return timestamp;
   let dateStr = String(timestamp).trim();
-  // If no timezone offset (+/-HH:MM) or trailing 'Z' is present, append 'Z' so browser treats it as UTC
-  if (!dateStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(dateStr)) {
-    dateStr += 'Z';
+  if (!dateStr) return null;
+
+  // If already an ISO string with Z or +/- offset
+  if (dateStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
   }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? null : d;
+
+  // If local datetime-local format YYYY-MM-DDTHH:mm (16 chars from input)
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Server UTC string without Z (e.g. 2026-11-17T11:00:00 or with ms)
+  const d = new Date(dateStr + 'Z');
+  return isNaN(d.getTime()) ? new Date(dateStr) : d;
 };
 
 export const formatIndianDateTime = (

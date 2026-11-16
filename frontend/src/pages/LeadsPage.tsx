@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Lead, api, CurrentUser, TeamMember } from '../services/api';
-import { formatIndianDate } from '../utils/dateUtils';
+import { formatIndianDate, formatIndianDateTime } from '../utils/dateUtils';
 import { 
   Users, 
   Search, 
@@ -14,7 +14,11 @@ import {
   Clock,
   CalendarRange,
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Bell,
+  CalendarPlus,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 
 interface LeadsPageProps {
@@ -37,9 +41,12 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Staff Permission & Isolation
+  const isStaff = currentUser?.role === 'staff';
+  const canAssign = !isStaff && (!currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin');
+
   // Team Members for Staff Assignment & Filter
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const canAssign = !currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin';
 
   // Filter States
   const [search, setSearch] = useState('');
@@ -47,6 +54,14 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [selectedSource, setSelectedSource] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStaff, setSelectedStaff] = useState('all');
+  const [followUpFilter, setFollowUpFilter] = useState<string>('all');
+  const [followUpSummary, setFollowUpSummary] = useState<{
+    today_count: number;
+    overdue_count: number;
+    upcoming_count: number;
+    total_active: number;
+  }>({ today_count: 0, overdue_count: 0, upcoming_count: 0, total_active: 0 });
+
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'last_7_days' | 'last_30_days' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -77,6 +92,9 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
 
   const loadLeads = () => {
     setLoading(true);
+    // Strict Staff Isolation: if logged-in user is staff, only fetch leads assigned to them!
+    const effectiveStaffId = isStaff ? (currentUser?.id || '') : (selectedStaff === 'all' ? '' : selectedStaff);
+
     api.getLeads(
       tenantId,
       search,
@@ -86,13 +104,28 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
       dateFilter === 'all' ? '' : dateFilter,
       customStartDate,
       customEndDate,
-      selectedStaff === 'all' ? '' : selectedStaff
+      effectiveStaffId,
+      followUpFilter === 'all' ? '' : followUpFilter
     )
       .then((res) => {
         if (res && res.items) setLeads(res.items);
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    // Also fetch follow-ups summary counts
+    api.getFollowupsSummary(tenantId, isStaff ? currentUser?.id : undefined)
+      .then((res) => {
+        if (res) {
+          setFollowUpSummary({
+            today_count: res.today_count || 0,
+            overdue_count: res.overdue_count || 0,
+            upcoming_count: res.upcoming_count || 0,
+            total_active: res.total_active || 0,
+          });
+        }
+      })
+      .catch((err) => console.error('Failed to load follow-up summary:', err));
   };
 
   useEffect(() => {
@@ -100,7 +133,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
       loadLeads();
     }, 250);
     return () => clearTimeout(timer);
-  }, [tenantId, search, selectedStage, selectedSource, selectedCategory, selectedStaff, dateFilter, customStartDate, customEndDate]);
+  }, [tenantId, search, selectedStage, selectedSource, selectedCategory, selectedStaff, followUpFilter, dateFilter, customStartDate, customEndDate, currentUser?.id]);
 
   const handleAssignLead = async (leadId: string, staffId: string) => {
     try {
@@ -160,16 +193,31 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
 
   const handleStageChange = async (leadId: string, currentStage: string, nextStage: string) => {
     try {
+      // Optimistic UI update: advance stage AND clear next_follow_up immediately so red overdue badge vanishes in 0ms!
+      setLeads((prev) =>
+        prev.map((l) => (l._id === leadId || l.id === leadId ? { ...l, stage: nextStage, next_follow_up: null } : l))
+      );
       if (onMoveStage) {
         onMoveStage(leadId, currentStage, nextStage);
       } else {
         await api.updateLeadStage(leadId, nextStage, undefined, tenantId);
       }
-      setLeads((prev) =>
-        prev.map((l) => (l._id === leadId || l.id === leadId ? { ...l, stage: nextStage } : l))
-      );
+      // Refresh follow-up count summary immediately
+      api.getFollowupsSummary(tenantId, isStaff ? currentUser?.id : undefined)
+        .then((res) => {
+          if (res) {
+            setFollowUpSummary({
+              today_count: res.today_count || 0,
+              overdue_count: res.overdue_count || 0,
+              upcoming_count: res.upcoming_count || 0,
+              total_active: res.total_active || 0,
+            });
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       console.error(err);
+      loadLeads();
     }
   };
 
@@ -236,14 +284,15 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
     }
   };
 
-  const hasActiveFilters = search || selectedStage !== 'all' || selectedSource !== 'all' || selectedCategory !== 'all' || selectedStaff !== 'all' || dateFilter !== 'all';
+  const hasActiveFilters = search || selectedStage !== 'all' || selectedSource !== 'all' || selectedCategory !== 'all' || (!isStaff && selectedStaff !== 'all') || dateFilter !== 'all' || followUpFilter !== 'all';
 
   const resetAllFilters = () => {
     setSearch('');
     setSelectedStage('all');
     setSelectedSource('all');
     setSelectedCategory('all');
-    setSelectedStaff('all');
+    if (!isStaff) setSelectedStaff('all');
+    setFollowUpFilter('all');
     setDateFilter('all');
     setCustomStartDate('');
     setCustomEndDate('');
@@ -255,9 +304,23 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
       {/* Header & New Lead Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">All Inbound & Outbound Leads</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-900">
+              {followUpFilter === 'today' ? "🔔 Today's Scheduled Follow-ups" :
+               followUpFilter === 'overdue' ? "🚨 Overdue Follow-ups" :
+               followUpFilter === 'upcoming' ? "📅 Upcoming Scheduled Follow-ups" :
+               "All Inbound & Outbound Leads"}
+            </h2>
+            {isStaff && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                👤 My Leads Only
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time multi-channel lead master with pipeline status, CRM category (Hot/Warm/Cold), and 1-click billing.
+            {isStaff 
+              ? `Logged in as sales staff: displaying only leads assigned to you (${currentUser?.full_name}).`
+              : "Real-time multi-channel lead master with pipeline status, follow-up alerts, CRM category, and 1-click billing."}
           </p>
         </div>
 
@@ -267,6 +330,78 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
         >
           <Plus className="h-4 w-4" />
           <span>Add New Lead</span>
+        </button>
+      </div>
+
+      {/* Follow-up Quick View Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-100/80 p-2 rounded-2xl border border-slate-200">
+        <button
+          onClick={() => setFollowUpFilter('all')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            followUpFilter === 'all'
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200'
+          }`}
+        >
+          <Users className="h-3.5 w-3.5" />
+          <span>All Leads Master</span>
+        </button>
+
+        <button
+          onClick={() => setFollowUpFilter('today')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            followUpFilter === 'today'
+              ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-300'
+              : 'bg-white text-amber-900 hover:bg-amber-50 border border-amber-200'
+          }`}
+        >
+          <Bell className="h-3.5 w-3.5 text-amber-500" />
+          <span>🔔 Today's Follow-ups</span>
+          {followUpSummary.today_count > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              followUpFilter === 'today' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white'
+            }`}>
+              {followUpSummary.today_count}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setFollowUpFilter('overdue')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            followUpFilter === 'overdue'
+              ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-300'
+              : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
+          }`}
+        >
+          <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
+          <span>🚨 Overdue Follow-ups</span>
+          {followUpSummary.overdue_count > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              followUpFilter === 'overdue' ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'
+            }`}>
+              {followUpSummary.overdue_count}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setFollowUpFilter('upcoming')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+            followUpFilter === 'upcoming'
+              ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-300'
+              : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
+          }`}
+        >
+          <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+          <span>📅 Upcoming Follow-ups</span>
+          {followUpSummary.upcoming_count > 0 && (
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              followUpFilter === 'upcoming' ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'
+            }`}>
+              {followUpSummary.upcoming_count}
+            </span>
+          )}
         </button>
       </div>
 
@@ -334,21 +469,31 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
             </select>
           </div>
 
-          {/* Filter: Staff / Assigned Member */}
+          {/* Filter: Staff / Assigned Member (Strictly locked when logged-in as staff) */}
           <div className="w-full md:w-44 shrink-0">
-            <select
-              value={selectedStaff}
-              onChange={(e) => setSelectedStaff(e.target.value)}
-              className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-xs bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
-            >
-              <option value="all">👤 All Staff Members</option>
-              <option value="unassigned">⚠️ Unassigned Leads</option>
-              {teamMembers.map((m) => (
-                <option key={m._id} value={m._id}>
-                  {m.full_name}
-                </option>
-              ))}
-            </select>
+            {isStaff ? (
+              <div 
+                className="w-full border border-indigo-300 rounded-xl px-3 py-2 text-xs bg-indigo-100/80 text-indigo-900 font-bold flex items-center justify-between" 
+                title="Privacy Protection: You can only view leads assigned to your user account."
+              >
+                <span className="truncate">👤 {currentUser?.full_name || 'My Leads'}</span>
+                <span className="text-[10px] bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-black shrink-0">MY LEADS</span>
+              </div>
+            ) : (
+              <select
+                value={selectedStaff}
+                onChange={(e) => setSelectedStaff(e.target.value)}
+                className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-xs bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
+              >
+                <option value="all">👤 All Staff Members</option>
+                <option value="unassigned">⚠️ Unassigned Leads</option>
+                {teamMembers.map((m) => (
+                  <option key={m._id} value={m._id}>
+                    {m.full_name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -480,6 +625,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                   <th className="p-3.5">Lead Source</th>
                   <th className="p-3.5">Category (Hot/Cold)</th>
                   <th className="p-3.5">Assigned Staff</th>
+                  <th className="p-3.5">Next Follow-up</th>
                   <th className="p-3.5">Pipeline Status</th>
                   <th className="p-3.5">Product Inquired</th>
                   <th className="p-3.5 text-right">Deal Value</th>
@@ -574,6 +720,50 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                               </span>
                             )}
                           </div>
+                        )}
+                      </td>
+
+                      {/* Next Follow-up */}
+                      <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                        {l.next_follow_up && l.next_follow_up.status === 'PENDING' ? (
+                          (() => {
+                            const sched = new Date(l.next_follow_up.scheduled_at);
+                            const now = new Date();
+                            const schedDate = new Date(sched.getFullYear(), sched.getMonth(), sched.getDate()).getTime();
+                            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                            const isOverdue = sched < now && schedDate < nowDate;
+                            const isToday = schedDate === nowDate;
+
+                            return (
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                                  isOverdue
+                                    ? 'bg-rose-50 border-rose-300 text-rose-700'
+                                    : isToday
+                                    ? 'bg-amber-50 border-amber-300 text-amber-800'
+                                    : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                }`}>
+                                  {isOverdue ? '🚨 Overdue' : isToday ? '🔔 Due Today' : '📅 Upcoming'}
+                                </span>
+                                <div className="text-[11px] font-bold text-slate-800 truncate max-w-[130px]">
+                                  {formatIndianDateTime(l.next_follow_up.scheduled_at, false)}
+                                </div>
+                                {l.next_follow_up.note && (
+                                  <p className="text-[10px] text-slate-500 truncate max-w-[130px]" title={l.next_follow_up.note}>
+                                    {l.next_follow_up.note}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <button
+                            onClick={() => onLeadClick(l)}
+                            className="text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                          >
+                            <CalendarPlus className="h-3 w-3" />
+                            <span>+ Follow-up</span>
+                          </button>
                         )}
                       </td>
 

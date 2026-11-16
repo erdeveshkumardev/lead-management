@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, CurrentUser } from '../services/api';
+import { api, CurrentUser, API_BASE_URL } from '../services/api';
 import { 
   Building2, 
   Plus, 
@@ -547,12 +547,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`}
+                      value={`${API_BASE_URL}/webhooks/indiamart/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/indiamart/${activeTenant}`, 'im')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/indiamart/${activeTenant}`, 'im')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'im' ? 'Copied!' : 'Copy URL'}
@@ -612,12 +612,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`}
+                      value={`${API_BASE_URL}/webhooks/facebook/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/facebook/${activeTenant}`, 'fb')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/facebook/${activeTenant}`, 'fb')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'fb' ? 'Copied!' : 'Copy URL'}
@@ -677,12 +677,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`}
+                      value={`${API_BASE_URL}/webhooks/tradeindia/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/tradeindia/${activeTenant}`, 'ti')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/tradeindia/${activeTenant}`, 'ti')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'ti' ? 'Copied!' : 'Copy URL'}
@@ -742,12 +742,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`}
+                      value={`${API_BASE_URL}/webhooks/justdial/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/justdial/${activeTenant}`, 'jd')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/justdial/${activeTenant}`, 'jd')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'jd' ? 'Copied!' : 'Copy URL'}
@@ -863,12 +863,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={websiteToken ? `http://localhost:8002/api/v1/webhooks/website/${activeTenant}?token=${websiteToken}` : `http://localhost:8002/api/v1/webhooks/website/${activeTenant}`}
+                      value={websiteToken ? `${API_BASE_URL}/webhooks/website/${activeTenant}?token=${websiteToken}` : `${API_BASE_URL}/webhooks/website/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/website/${activeTenant}?token=${websiteToken}`, 'web_pub')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/website/${activeTenant}?token=${websiteToken}`, 'web_pub')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'web_pub' ? 'Copied!' : 'Copy URL'}
@@ -941,12 +941,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     <input
                       type="text"
                       readOnly
-                      value={`http://localhost:8002/api/v1/webhooks/website/${activeTenant}`}
+                      value={`${API_BASE_URL}/webhooks/website/${activeTenant}`}
                       className="w-full border border-slate-200 rounded-xl pl-3 pr-20 py-2 bg-slate-100 text-slate-600 font-mono text-[11px] select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(`http://localhost:8002/api/v1/webhooks/website/${activeTenant}`, 'web_direct')}
+                      onClick={() => copyToClipboard(`${API_BASE_URL}/webhooks/website/${activeTenant}`, 'web_direct')}
                       className="absolute right-1.5 top-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-[10px]"
                     >
                       {copiedKey === 'web_direct' ? 'Copied!' : 'Copy'}
@@ -998,7 +998,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
     };
 
     try {
-      const res = await fetch("http://localhost:8002/api/v1/webhooks/website/${activeTenant}?token=${websiteToken}", {
+      const res = await fetch("${API_BASE_URL}/webhooks/website/${activeTenant}?token=${websiteToken}", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -1054,7 +1054,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
       _render_time: form._render_time.value
     };
 
-    const res = await fetch("http://localhost:8002/api/v1/webhooks/website/${activeTenant}?token=${websiteToken}", {
+    const res = await fetch("${API_BASE_URL}/webhooks/website/${activeTenant}?token=${websiteToken}", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)

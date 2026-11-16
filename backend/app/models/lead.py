@@ -22,6 +22,19 @@ class ConvertedBillInfo(BaseModel):
     converted_at: Optional[datetime] = None
 
 
+class FollowUpItem(BaseModel):
+    id: Optional[str] = None
+    scheduled_at: datetime  # Scheduled date & time
+    follow_up_type: str = "call"  # "call", "whatsapp", "meeting", "email", "site_visit"
+    note: str
+    status: str = "PENDING"  # "PENDING", "COMPLETED", "CANCELLED"
+    assigned_to_user_id: Optional[str] = None
+    assigned_to_user_name: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    completion_note: Optional[str] = None
+
+
 class Lead(Document):
     tenant_id: Indexed(str)
     source: str = "manual"  # "indiamart", "tradeindia", "facebook", "website", "manual"
@@ -58,6 +71,10 @@ class Lead(Document):
 
     # Conversion to Bill
     conversion_info: ConvertedBillInfo = Field(default_factory=ConvertedBillInfo)
+
+    # Follow-up System
+    next_follow_up: Optional[FollowUpItem] = None
+    follow_ups: List[FollowUpItem] = Field(default_factory=list)
 
     # Activity Timeline (Audit trail & CRM history)
     timeline: List[TimelineItem] = Field(default_factory=list)

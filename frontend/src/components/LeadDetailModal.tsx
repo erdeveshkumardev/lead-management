@@ -67,6 +67,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [followUpType, setFollowUpType] = useState('call');
   const [followUpNote, setFollowUpNote] = useState('');
   const [isSchedulingFollowUp, setIsSchedulingFollowUp] = useState(false);
+  const [showFollowUpTypeDropdown, setShowFollowUpTypeDropdown] = useState(false);
 
   const [showCompletePrompt, setShowCompletePrompt] = useState(false);
   const [completionRemark, setCompletionRemark] = useState('');
@@ -385,11 +386,12 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 disabled={isAssigning}
                 value={selectedStaffId}
                 onChange={(e) => handleAssignLead(e.target.value)}
+                style={{ color: '#0f172a', backgroundColor: '#ffffff', colorScheme: 'light' }}
                 className="text-xs font-semibold bg-white text-slate-800 border border-indigo-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer disabled:opacity-50"
               >
-                <option value="unassigned">-- Unassign / Open Pool --</option>
+                <option value="unassigned" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>-- Unassign / Open Pool --</option>
                 {teamMembers.map((member) => (
-                  <option key={member._id} value={member._id}>
+                  <option key={member._id} value={member._id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
                     {member.full_name} ({member.designation || member.role.replace('_', ' ').toUpperCase()})
                   </option>
                 ))}
@@ -574,42 +576,56 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               <div className="space-y-2 pt-1">
                 <div>
                   <label className="text-xs font-black text-slate-900 block mb-1.5">
-                    Follow-up Mode / Channel:
+                    Follow-up Type:
                   </label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {[
-                      { id: 'call', label: '📞 Phone Call' },
-                      { id: 'whatsapp', label: '💬 WhatsApp' },
-                      { id: 'meeting', label: '👥 Meeting' },
-                      { id: 'email', label: '✉️ Email' },
-                      { id: 'site_visit', label: '🏢 Site Visit' },
-                    ].map((mode) => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => setFollowUpType(mode.id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          followUpType === mode.id
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
+                  {/* Custom CSS dropdown — avoids OS dark-mode override on native <select> options */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowFollowUpTypeDropdown((v) => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm cursor-pointer hover:border-indigo-400 transition-colors"
+                      style={{ colorScheme: 'light' }}
+                    >
+                      <span className="text-slate-900 font-bold">
+                        {followUpType === 'call' && '📞 Phone Call'}
+                        {followUpType === 'whatsapp' && '💬 WhatsApp Message'}
+                        {followUpType === 'meeting' && '👥 In-person / Online Meeting'}
+                        {followUpType === 'email' && '✉️ Formal Email'}
+                        {followUpType === 'site_visit' && '🏢 Site / Factory Visit'}
+                      </span>
+                      <svg className={`h-4 w-4 text-slate-500 transition-transform shrink-0 ml-2 ${showFollowUpTypeDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {showFollowUpTypeDropdown && (
+                      <div
+                        className="absolute z-50 mt-1 w-full bg-white border-2 border-indigo-200 rounded-xl shadow-2xl overflow-hidden"
+                        style={{ colorScheme: 'light' }}
                       >
-                        {mode.label}
-                      </button>
-                    ))}
+                        {[
+                          { id: 'call',       label: '📞 Phone Call' },
+                          { id: 'whatsapp',   label: '💬 WhatsApp Message' },
+                          { id: 'meeting',    label: '👥 In-person / Online Meeting' },
+                          { id: 'email',      label: '✉️ Formal Email' },
+                          { id: 'site_visit', label: '🏢 Site / Factory Visit' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => { setFollowUpType(opt.id); setShowFollowUpTypeDropdown(false); }}
+                            className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer ${
+                              followUpType === opt.id
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white text-slate-900 hover:bg-indigo-50 hover:text-indigo-700'
+                            }`}
+                            style={{ colorScheme: 'light' }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <select
-                    value={followUpType}
-                    onChange={(e) => setFollowUpType(e.target.value)}
-                    style={{ color: '#0f172a', backgroundColor: '#ffffff', colorScheme: 'light' }}
-                    className="w-full text-xs font-bold text-slate-900 bg-white border-2 border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-2xs cursor-pointer"
-                  >
-                    <option style={{ color: '#0f172a', backgroundColor: '#ffffff' }} value="call">📞 Phone Call</option>
-                    <option style={{ color: '#0f172a', backgroundColor: '#ffffff' }} value="whatsapp">💬 WhatsApp Message</option>
-                    <option style={{ color: '#0f172a', backgroundColor: '#ffffff' }} value="meeting">👥 In-person / Online Meeting</option>
-                    <option style={{ color: '#0f172a', backgroundColor: '#ffffff' }} value="email">✉️ Formal Email</option>
-                    <option style={{ color: '#0f172a', backgroundColor: '#ffffff' }} value="site_visit">🏢 Site / Factory Visit</option>
-                  </select>
                 </div>
 
                 <div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, TeamMember } from '../../services/api';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { 
   Users, 
   Plus, 
@@ -41,6 +42,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
   // Permission toggles
   const [permsState, setPermsState] = useState<Record<string, boolean>>({});
   const [isSavingPerms, setIsSavingPerms] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadTeam = async () => {
     setLoading(true);
@@ -124,13 +127,21 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!confirm('Are you sure you want to remove this team member?')) return;
+  const handleDeleteMember = (memberId: string) => {
+    setDeletingMemberId(memberId);
+  };
+
+  const confirmDeleteMember = async () => {
+    if (!deletingMemberId) return;
+    setIsDeleting(true);
     try {
-      await api.deleteTeamMember(memberId, tenantId);
+      await api.deleteTeamMember(deletingMemberId, tenantId);
+      setDeletingMemberId(null);
       loadTeam();
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -601,6 +612,19 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
           </div>
         </div>
       )}
+
+      {/* Modern React Confirmation Modal for Team Member Deletion */}
+      <ConfirmModal
+        isOpen={Boolean(deletingMemberId)}
+        title="Remove Team Member?"
+        message="Are you sure you want to remove this team member? They will immediately lose access to the company CRM and any assigned leads will remain safely in the system."
+        confirmText="Remove Member"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDeleteMember}
+        onCancel={() => setDeletingMemberId(null)}
+      />
     </div>
   );
 };

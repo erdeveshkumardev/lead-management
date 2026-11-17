@@ -59,7 +59,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
-  // Load Profile from Server
+  // Masters Dropdown States
+  const [departmentsList, setDepartmentsList] = useState<string[]>([
+    "Sales & Business Development",
+    "Presales & Estimation",
+    "Accounts & Billing",
+    "Technical Support",
+    "Management"
+  ]);
+  const [designationsList, setDesignationsList] = useState<string[]>([
+    "Sales Executive",
+    "Senior BDA",
+    "Team Leader",
+    "Sales Manager",
+    "General Manager"
+  ]);
+
+  // Load Profile and Company Masters from Server
   useEffect(() => {
     setLoading(true);
     api.getUserProfile(currentUser.id)
@@ -78,7 +94,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       })
       .catch((err) => console.error('Failed to load user profile:', err))
       .finally(() => setLoading(false));
-  }, [currentUser.id]);
+
+    // Load Company Masters for Designation & Department dropdowns
+    api.getCompanyMasters(currentUser.tenant_id || 'demo_tenant_01')
+      .then((masters) => {
+        if (masters) {
+          if (Array.isArray(masters.departments) && masters.departments.length > 0) {
+            setDepartmentsList(masters.departments);
+          }
+          if (Array.isArray(masters.designations) && masters.designations.length > 0) {
+            setDesignationsList(masters.designations);
+          }
+        }
+      })
+      .catch((err) => console.error('Failed to load company masters:', err));
+  }, [currentUser.id, currentUser.tenant_id]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,30 +339,48 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Designation</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Designation <span className="text-[10px] text-indigo-600 font-bold">(From Masters)</span>
+                  </label>
                   <div className="relative">
-                    <Briefcase className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Sales Executive, Senior BDA"
+                    <Briefcase className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <select
                       value={designation}
                       onChange={(e) => setDesignation(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                      style={{ colorScheme: 'light' }}
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="">-- Select Designation --</option>
+                      {designation && !designationsList.includes(designation) && (
+                        <option value={designation}>{designation}</option>
+                      )}
+                      {designationsList.map((des, idx) => (
+                        <option key={idx} value={des}>{des}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Department</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Department <span className="text-[10px] text-indigo-600 font-bold">(From Masters)</span>
+                  </label>
                   <div className="relative">
-                    <Layers className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Domestic Sales, Machinery Ops"
+                    <Layers className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <select
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                      style={{ colorScheme: 'light' }}
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="">-- Select Department --</option>
+                      {department && !departmentsList.includes(department) && (
+                        <option value={department}>{department}</option>
+                      )}
+                      {departmentsList.map((dep, idx) => (
+                        <option key={idx} value={dep}>{dep}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

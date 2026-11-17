@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lead, api, CurrentUser, TeamMember } from '../services/api';
+import { Lead, api, CurrentUser, TeamMember, Invoice } from '../services/api';
 import { formatIndianDateTime, formatIndianDate } from '../utils/dateUtils';
 import { 
   X, 
@@ -21,8 +21,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Bell,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  CreditCard,
+  Download
 } from 'lucide-react';
+import { InvoiceViewModal } from './InvoiceViewModal';
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -41,12 +45,22 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onConvertToBill,
   onLeadUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'timeline' | 'details' | 'followups'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'details' | 'followups' | 'invoices'>('timeline');
   const [activityNote, setActivityNote] = useState('');
   const [activityType, setActivityType] = useState('CALL_LOG');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Staff Assignment State
+  // Invoices & Billing State for this Lead
+  const [leadInvoices, setLeadInvoices] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [payAmount, setPayAmount] = useState<number>(0);
+  const [payMode, setPayMode] = useState<string>('UPI');
+  const [payRef, setPayRef] = useState<string>('');
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+
+  // Staff Assignment State (Strict: ONLY company_admin and super_admin can assign leads)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>(lead.assigned_to_user_id || 'unassigned');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -73,22 +87,74 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [completionRemark, setCompletionRemark] = useState('');
   const [isCompletingFollowUp, setIsCompletingFollowUp] = useState(false);
 
-  const canAssign = !currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin';
+  // Strict Permission: Only Company Admin and Super Admin can assign leads!
+  const canAssign = currentUser?.role === 'company_admin' || currentUser?.role === 'super_admin';
 
   useEffect(() => {
     setSelectedStaffId(lead.assigned_to_user_id || 'unassigned');
   }, [lead.assigned_to_user_id]);
 
-  useEffect(() => {
+  const loadLeadInvoices = () => {
     const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
-    api.getTeamMembers(activeTenant)
+    setLoadingInvoices(true);
+    api.getInvoices(activeTenant)
       .then((res) => {
-        if (res && res.members) {
-          setTeamMembers(res.members.filter((m: TeamMember) => m.is_active));
+        if (res && res.items) {
+          const leadId = lead._id || lead.id;
+          const matched = res.items.filter((inv: Invoice) => 
+            (leadId && inv.lead_id === leadId) ||
+            (inv.customer?.phone && lead.phone && inv.customer.phone === lead.phone) ||
+            (inv.customer?.name && lead.full_name && inv.customer.name.toLowerCase() === lead.full_name.toLowerCase())
+          );
+          setLeadInvoices(matched);
         }
       })
-      .catch((err) => console.error('Failed to load team members:', err));
-  }, [lead.tenant_id, tenantId]);
+      .catch((err) => console.error('Failed to load lead invoices:', err))
+      .finally(() => setLoadingInvoices(false));
+  };
+
+  useEffect(() => {
+    loadLeadInvoices();
+  }, [lead._id, lead.id, lead.tenant_id, tenantId]);
+
+  const handleOpenPayment = (inv: Invoice) => {
+    setPaymentInvoice(inv);
+    setPayAmount(inv.financials?.balance_due || 0);
+    setPayMode('UPI');
+    setPayRef('');
+  };
+
+  const handleRecordPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentInvoice || payAmount <= 0) return;
+    setIsRecordingPayment(true);
+    try {
+      const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
+      await api.recordPayment(paymentInvoice._id, {
+        amount: payAmount,
+        payment_mode: payMode,
+        reference_number: payRef || undefined,
+      }, activeTenant);
+      setPaymentInvoice(null);
+      loadLeadInvoices();
+      onLeadUpdated();
+    } catch (err) {
+      console.error('Failed to record payment:', err);
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  };
+
+  const handleQuickMarkAsPaid = async (inv: Invoice) => {
+    try {
+      const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
+      await api.markInvoiceAsPaid(inv._id, 'UPI', activeTenant);
+      loadLeadInvoices();
+      onLeadUpdated();
+    } catch (err) {
+      console.error('Failed to mark invoice as paid:', err);
+    }
+  };
 
   const handleAssignLead = async (targetUserId: string) => {
     setIsAssigning(true);
@@ -697,12 +763,12 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         </div>
 
         {/* Tab switcher */}
-        <div className="px-6 border-b border-slate-200 flex gap-4 text-xs font-semibold">
+        <div className="px-6 border-b border-slate-200 flex gap-4 text-xs font-semibold overflow-x-auto">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`py-3 border-b-2 transition-colors shrink-0 ${
               activeTab === 'timeline'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-blue-600 text-blue-600 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -710,7 +776,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('followups')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`py-3 border-b-2 transition-colors shrink-0 ${
               activeTab === 'followups'
                 ? 'border-amber-600 text-amber-600 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -719,10 +785,21 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             Follow-ups ({lead.follow_ups?.length || 0})
           </button>
           <button
+            onClick={() => setActiveTab('invoices')}
+            className={`py-3 border-b-2 transition-colors shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'invoices'
+                ? 'border-indigo-600 text-indigo-600 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            <span>Invoices & Bills ({leadInvoices.length})</span>
+          </button>
+          <button
             onClick={() => setActiveTab('details')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`py-3 border-b-2 transition-colors shrink-0 ${
               activeTab === 'details'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-blue-600 text-blue-600 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -820,6 +897,151 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'invoices' ? (
+            /* Invoices & Bills View */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Commercial Quotations & Tax Invoices</h4>
+                  <p className="text-xs text-slate-500">Official GST documents and payment receipts issued for {lead.full_name}</p>
+                </div>
+                <button
+                  onClick={() => onConvertToBill(lead)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  <span>+ Generate New Bill / Quotation</span>
+                </button>
+              </div>
+
+              {loadingInvoices ? (
+                <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
+                  <p className="text-xs">Loading billing documents...</p>
+                </div>
+              ) : leadInvoices.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <Receipt className="h-8 w-8 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-xs text-slate-600">No invoices or quotations generated yet</p>
+                  <p className="text-[11px] text-slate-400">Click the button above to generate a 1-click GST Tax Invoice or Commercial Quotation.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {leadInvoices.map((inv) => {
+                    const isPaid = inv.payment_status === 'PAID';
+                    const isPartial = inv.payment_status === 'PARTIALLY_PAID';
+                    return (
+                      <div
+                        key={inv._id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-indigo-300 transition-all space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                              {inv.invoice_number}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              inv.document_type === 'TAX_INVOICE'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : 'bg-purple-50 text-purple-700 border border-purple-200'
+                            }`}>
+                              {inv.document_type === 'TAX_INVOICE' ? 'Tax Invoice' : 'Quotation'}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              isPaid
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : isPartial
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {inv.payment_status}
+                            </span>
+                          </div>
+
+                          <span className="text-xs text-slate-400">
+                            Date: <b>{new Date(inv.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</b>
+                          </span>
+                        </div>
+
+                        {/* Amount Bar */}
+                        <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                          <div>
+                            <span className="text-slate-400 text-[10px] block font-medium">Grand Total</span>
+                            <span className="font-bold text-slate-900 font-mono">
+                              ₹{inv.financials?.grand_total?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[10px] block font-medium">Paid</span>
+                            <span className="font-bold text-emerald-700 font-mono">
+                              ₹{inv.financials?.paid_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 text-[10px] block font-medium">Balance Due</span>
+                            <span className={`font-mono font-bold ${inv.financials?.balance_due > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              ₹{inv.financials?.balance_due?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {inv.items?.length || 0} items ({inv.items?.map(it => it.name).join(', ')})
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            {/* Record Payment / Mark Paid Button */}
+                            {inv.financials?.balance_due > 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickMarkAsPaid(inv)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
+                                  title="1-Click Mark Full Amount as Paid"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  <span>Mark Paid</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPayment(inv)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                >
+                                  <CreditCard className="h-3 w-3" />
+                                  <span>Record Partial/Pay</span>
+                                </button>
+                              </>
+                            )}
+
+                            {/* View In-App Modal */}
+                            <button
+                              type="button"
+                              onClick={() => setViewingInvoice(inv)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                            >
+                              <Eye className="h-3 w-3" />
+                              <span>View</span>
+                            </button>
+
+                            {/* Download PDF */}
+                            <a
+                              href={api.getInvoicePdfUrl(inv._id, inv.tenant_id || lead.tenant_id || tenantId)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                            >
+                              <Download className="h-3 w-3" />
+                              <span>PDF</span>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -973,6 +1195,106 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Invoice View Modal */}
+      {viewingInvoice && (
+        <InvoiceViewModal
+          invoice={viewingInvoice}
+          tenantId={viewingInvoice.tenant_id || lead.tenant_id || tenantId}
+          onClose={() => setViewingInvoice(null)}
+          onRecordPayment={(inv) => handleOpenPayment(inv)}
+        />
+      )}
+
+      {/* Record Payment Modal for Lead Invoices */}
+      {paymentInvoice && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-emerald-600" />
+                <h3 className="font-bold text-base text-slate-900">Record Payment</h3>
+              </div>
+              <button onClick={() => setPaymentInvoice(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <p>Invoice: <span className="font-bold text-slate-800">{paymentInvoice.invoice_number}</span></p>
+              <p>Customer: <span className="font-semibold text-slate-800">{paymentInvoice.customer?.name}</span></p>
+              <p>Total Balance Due: <span className="font-bold text-amber-600">₹{paymentInvoice.financials?.balance_due?.toLocaleString('en-IN')}</span></p>
+            </div>
+
+            <form onSubmit={handleRecordPaymentSubmit} className="space-y-3 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">Amount Paid (₹)</label>
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount(paymentInvoice.financials?.balance_due || 0)}
+                    className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                  >
+                    Pay Full Balance (₹{paymentInvoice.financials?.balance_due?.toLocaleString('en-IN')})
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  max={paymentInvoice.financials?.balance_due}
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(Number(e.target.value))}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Payment Mode</label>
+                <select
+                  value={payMode}
+                  onChange={(e) => setPayMode(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
+                  <option value="NEFT">NEFT / RTGS / IMPS</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Credit / Debit Card</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Reference Number / UTR</label>
+                <input
+                  type="text"
+                  placeholder="e.g. UTR12938471203"
+                  value={payRef}
+                  onChange={(e) => setPayRef(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentInvoice(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRecordingPayment || payAmount <= 0}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {isRecordingPayment ? 'Saving...' : 'Record Payment Receipt'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

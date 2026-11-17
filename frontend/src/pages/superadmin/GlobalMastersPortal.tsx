@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { 
   Globe, 
   MapPin, 
@@ -76,13 +77,24 @@ export const GlobalMastersPortal: React.FC = () => {
     }
   };
 
-  const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this master record?')) return;
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteItem = (itemId: string) => {
+    setDeletingItemId(itemId);
+  };
+
+  const confirmDeleteItem = async () => {
+    if (!deletingItemId) return;
+    setIsDeleting(true);
     try {
-      await api.deleteGlobalMaster(itemId);
+      await api.deleteGlobalMaster(deletingItemId);
+      setDeletingItemId(null);
       loadGlobalMasters();
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -359,6 +371,19 @@ export const GlobalMastersPortal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modern React Confirmation Modal for Master Record Deletion */}
+      <ConfirmModal
+        isOpen={Boolean(deletingItemId)}
+        title="Delete Master Item?"
+        message="Are you sure you want to delete this master record? This action will remove it from global dropdown selections."
+        confirmText="Delete Record"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDeleteItem}
+        onCancel={() => setDeletingItemId(null)}
+      />
     </div>
   );
 };

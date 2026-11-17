@@ -186,7 +186,7 @@ export const CommunicationSettingsTab: React.FC<CommunicationSettingsTabProps> =
 
   const handleTestChannel = async (channel: 'email' | 'whatsapp' | 'sms') => {
     if (!testRecipient) {
-      alert(`Please enter a test ${channel === 'email' ? 'email address' : 'phone number'}.`);
+      setTestResult({ status: 'error', error: `Please enter a test ${channel === 'email' ? 'email address' : 'phone number'}.` });
       return;
     }
 

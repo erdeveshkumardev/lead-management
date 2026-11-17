@@ -73,8 +73,8 @@ export function App() {
 
   const loadFollowUpSummary = async (tenantId = activeTenantId) => {
     try {
-      const isStaff = currentUser?.role === 'staff';
-      const res = await api.getFollowupsSummary(tenantId, isStaff ? currentUser?.id : undefined);
+      const isCompanyAdmin = currentUser?.role === 'company_admin' || currentUser?.role === 'super_admin';
+      const res = await api.getFollowupsSummary(tenantId, !isCompanyAdmin ? currentUser?.id : undefined);
       if (res) {
         setFollowUpSummary({
           today_count: res.today_count || 0,
@@ -90,8 +90,10 @@ export function App() {
 
   const loadKanban = async (tenantId = activeTenantId) => {
     try {
-      const isStaff = currentUser?.role === 'staff';
-      const data = await api.getKanbanBoard(tenantId, isStaff ? currentUser?.id : undefined);
+      // Unassigned leads are strictly visible to Company Admin / Super Admin only!
+      // Staff members only receive leads assigned to their own user ID.
+      const isCompanyAdmin = currentUser?.role === 'company_admin' || currentUser?.role === 'super_admin';
+      const data = await api.getKanbanBoard(tenantId, !isCompanyAdmin ? currentUser?.id : undefined);
       setKanbanData(data);
     } catch (err) {
       console.error('Failed to load kanban:', err);

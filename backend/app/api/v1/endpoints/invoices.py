@@ -179,3 +179,56 @@ async def record_payment(
         "balance_due": invoice.financials.balance_due,
         "invoice": invoice
     }
+
+
+@router.post("/{invoice_id}/mark-as-paid")
+async def mark_invoice_as_paid(
+    invoice_id: str,
+    tenant_id: Optional[str] = Query(None),
+    payment_mode: str = Query("UPI")
+):
+    """
+    1-Click Settlement: Marks the remaining balance due of an invoice or quotation as PAID.
+    """
+    invoice = await get_document_by_id(Invoice, invoice_id)
+    invoice = await _verify_invoice_access(invoice, tenant_id)
+
+    remaining = invoice.financials.balance_due
+    if remaining <= 0:
+        return {"status": "success", "message": "Invoice is already fully paid", "invoice": invoice}
+
+    payment_record = PaymentRecord(
+        payment_id=f"PAY_{int(datetime.utcnow().timestamp())}",
+        amount=remaining,
+        payment_mode=payment_mode,
+        reference_number="FULL_SETTLEMENT",
+        note="Marked as Paid via 1-Click Settlement",
+        paid_at=datetime.utcnow()
+    )
+    invoice.payments.append(payment_record)
+    invoice.financials.paid_amount = round_curr(invoice.financials.grand_total)
+    invoice.financials.balance_due = 0.0
+    invoice.payment_status = "PAID"
+    invoice.updated_at = datetime.utcnow()
+    await invoice.save()
+
+    if invoice.lead_id:
+        lead = await get_document_by_id(Lead, invoice.lead_id)
+        if lead:
+            lead.timeline.append(
+                TimelineItem(
+                    activity_type="PAYMENT_RECEIVED",
+                    note=f"Full balance of Rs {remaining:,.2f} marked as PAID via {payment_mode}.",
+                    performed_by_id="SYSTEM",
+                    performed_by_name="LeadCRM Ledger"
+                )
+            )
+            await lead.save()
+
+    return {
+        "status": "success",
+        "message": "Invoice marked as PAID successfully",
+        "payment_status": "PAID",
+        "balance_due": 0.0,
+        "invoice": invoice
+    }

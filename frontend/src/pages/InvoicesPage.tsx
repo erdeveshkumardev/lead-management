@@ -8,8 +8,10 @@ import {
   Clock, 
   AlertCircle,
   FileText,
+  Eye,
   X
 } from 'lucide-react';
+import { InvoiceViewModal } from '../components/InvoiceViewModal';
 
 interface InvoicesPageProps {
   tenantId?: string;
@@ -20,6 +22,7 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ tenantId }) => {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('');
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<Invoice | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   // Payment Form state
   const [payAmount, setPayAmount] = useState<number>(0);
@@ -167,11 +170,21 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ tenantId }) => {
                       {getStatusBadge(inv.payment_status)}
                     </td>
                     <td className="p-3.5 text-right space-x-2">
+                      {/* View Details Button */}
+                      <button
+                        onClick={() => setViewingInvoice(inv)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                        title="View Quotation / Invoice Details"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>View</span>
+                      </button>
+
                       {/* Record Payment Button */}
-                      {inv.financials.balance_due > 0 && inv.document_type === 'TAX_INVOICE' && (
+                      {inv.financials.balance_due > 0 && (
                         <button
                           onClick={() => handleOpenPayment(inv)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                         >
                           Record Payment
                         </button>
@@ -218,7 +231,16 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ tenantId }) => {
 
             <form onSubmit={handleRecordPaymentSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Amount Paid (₹)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">Amount Paid (₹)</label>
+                  <button
+                    type="button"
+                    onClick={() => setPayAmount(selectedInvoiceForPayment.financials.balance_due)}
+                    className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                  >
+                    Pay Full Balance (₹{selectedInvoiceForPayment.financials.balance_due.toLocaleString('en-IN')})
+                  </button>
+                </div>
                 <input
                   type="number"
                   min="1"
@@ -275,6 +297,16 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ tenantId }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Invoice View Modal */}
+      {viewingInvoice && (
+        <InvoiceViewModal
+          invoice={viewingInvoice}
+          tenantId={viewingInvoice.tenant_id || tenantId}
+          onClose={() => setViewingInvoice(null)}
+          onRecordPayment={(inv) => handleOpenPayment(inv)}
+        />
       )}
     </div>
   );

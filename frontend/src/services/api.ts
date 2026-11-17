@@ -226,6 +226,8 @@ export interface Invoice {
   };
   payment_status: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   payments: Array<any>;
+  terms_and_conditions?: string;
+  notes?: string;
 }
 
 export interface Product {
@@ -562,6 +564,13 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  markInvoiceAsPaid: async (invoiceId: string, paymentMode = 'UPI', tenantId = DEFAULT_TENANT_ID) => {
+    const res = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/mark-as-paid?tenant_id=${tenantId}&payment_mode=${paymentMode}`, {
+      method: 'POST'
     });
     return res.json();
   },

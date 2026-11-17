@@ -42,9 +42,10 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Staff Permission & Isolation
-  const isStaff = currentUser?.role === 'staff';
-  const canAssign = !isStaff && (!currentUser || currentUser.role === 'company_admin' || currentUser.role === 'manager' || currentUser.role === 'super_admin');
+  // Strict Company Admin Isolation & Assignment Permissions
+  const isCompanyAdmin = currentUser?.role === 'company_admin' || currentUser?.role === 'super_admin';
+  const isStaff = !isCompanyAdmin;
+  const canAssign = isCompanyAdmin;
 
   // Team Members for Staff Assignment & Filter
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -116,8 +117,11 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
 
   const loadLeads = () => {
     setLoading(true);
-    // Strict Staff Isolation: if logged-in user is staff, only fetch leads assigned to them!
-    const effectiveStaffId = isStaff ? (currentUser?.id || '') : (selectedStaff === 'all' ? '' : selectedStaff);
+    // Strict Role Isolation: Unassigned leads are strictly visible to Company Admin only!
+    // Staff/Sales agents are strictly isolated to their own assigned leads!
+    const effectiveStaffId = !isCompanyAdmin 
+      ? (currentUser?.id || 'none') 
+      : (selectedStaff === 'all' ? '' : selectedStaff);
 
     api.getLeads(
       tenantId,

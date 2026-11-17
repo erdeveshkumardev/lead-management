@@ -8,8 +8,10 @@ import {
   FileText, 
   CheckCircle2, 
   Download,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
+import { InvoiceViewModal } from './InvoiceViewModal';
 
 interface ConvertToBillModalProps {
   lead: Lead;
@@ -49,6 +51,7 @@ export const ConvertToBillModal: React.FC<ConvertToBillModalProps> = ({
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState<any>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -191,7 +194,15 @@ export const ConvertToBillModal: React.FC<ConvertToBillModalProps> = ({
               <p className="text-xs text-slate-500">
                 Lead status has been updated to <span className="font-semibold text-emerald-600">WON</span> and activity logged in timeline.
               </p>
-              <div className="pt-4 flex justify-center gap-3">
+              <div className="pt-4 flex flex-wrap justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 shadow-md transition-colors cursor-pointer"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>View Details & Items</span>
+                </button>
                 <a
                   href={api.getInvoicePdfUrl(createdInvoice._id, createdInvoice.tenant_id || lead.tenant_id)}
                   target="_blank"
@@ -199,7 +210,7 @@ export const ConvertToBillModal: React.FC<ConvertToBillModalProps> = ({
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 shadow-md transition-colors"
                 >
                   <Download className="h-4 w-4" />
-                  <span>Download GST Invoice PDF</span>
+                  <span>Download PDF</span>
                 </a>
                 <button
                   onClick={onClose}
@@ -208,6 +219,14 @@ export const ConvertToBillModal: React.FC<ConvertToBillModalProps> = ({
                   Close
                 </button>
               </div>
+
+              {showPreviewModal && (
+                <InvoiceViewModal
+                  invoice={createdInvoice}
+                  tenantId={createdInvoice.tenant_id || lead.tenant_id}
+                  onClose={() => setShowPreviewModal(false)}
+                />
+              )}
             </div>
           ) : (
             /* Input Form */

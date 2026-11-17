@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, CurrentUser, API_BASE_URL } from '../services/api';
 import { CommunicationSettingsTab } from '../components/CommunicationSettingsTab';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { 
   Building2, 
   Plus, 
@@ -93,6 +94,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
   const [newFieldKey, setNewFieldKey] = useState('');
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
   // Load existing company integrations
   useEffect(() => {
@@ -217,10 +219,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
   };
 
   const handleRegenerateKeys = async () => {
-    if (!window.confirm("Are you sure you want to regenerate Webhook Security Keys? Any existing forms or scripts using old tokens will immediately stop working until updated.")) {
-      return;
-    }
     setRegeneratingKeys(true);
+    setShowRegenConfirm(false);
     try {
       const res = await api.regenerateIntegrationKeys(activeTenant, 'website');
       if (res && res.webhook_token) {
@@ -229,9 +229,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
         setSavedAlert('Security keys regenerated successfully! Make sure to update your website forms.');
         setTimeout(() => setSavedAlert(''), 4000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to regenerate keys');
+      setSavedAlert('Failed to regenerate keys: ' + (err?.message || 'Network error'));
     } finally {
       setRegeneratingKeys(false);
     }
@@ -982,7 +982,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                   <button
                     type="button"
                     disabled={regeneratingKeys}
-                    onClick={handleRegenerateKeys}
+                    onClick={() => setShowRegenConfirm(true)}
                     className="text-[10px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
                   >
                     {regeneratingKeys ? 'Regenerating...' : 'Regenerate Token'}
@@ -1243,6 +1243,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
           </form>
         </div>
       )}
+
+      {/* Modern React Confirmation Modal for Key Regeneration */}
+      <ConfirmModal
+        isOpen={showRegenConfirm}
+        title="Regenerate Webhook Security Keys?"
+        message="Are you sure you want to regenerate Webhook Security Keys? Any existing website forms or external scripts using old tokens will immediately stop working until updated with the new token."
+        confirmText="Yes, Regenerate Keys"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={regeneratingKeys}
+        onConfirm={handleRegenerateKeys}
+        onCancel={() => setShowRegenConfirm(false)}
+      />
     </div>
   );
 };

@@ -98,11 +98,15 @@ async def indiamart_webhook(
         received_key = (
             request.headers.get("X-CRM-Key")
             or request.headers.get("X-API-Key")
+            or request.headers.get("X-Webhook-Token")
             or request.query_params.get("glusr_crm_key")
             or request.query_params.get("crm_key")
+            or request.query_params.get("key")
+            or request.query_params.get("token")
             or payload.get("GLUSR_CRM_KEY")
             or payload.get("crm_key")
             or payload.get("glusr_crm_key")
+            or payload.get("token")
             or ""
         ).strip()
         if received_key and received_key != expected_crm_key:
@@ -143,10 +147,13 @@ async def tradeindia_webhook(
         received_key = (
             request.headers.get("X-TradeIndia-Key")
             or request.headers.get("X-API-Key")
+            or request.headers.get("X-Webhook-Token")
             or request.query_params.get("key")
             or request.query_params.get("api_key")
+            or request.query_params.get("token")
             or payload.get("key")
             or payload.get("api_key")
+            or payload.get("token")
             or ""
         ).strip()
         if received_key and received_key != expected_key:
@@ -252,10 +259,13 @@ async def justdial_webhook(
         received_key = (
             request.headers.get("X-Justdial-Key")
             or request.headers.get("X-API-Key")
+            or request.headers.get("X-Webhook-Token")
             or request.query_params.get("key")
             or request.query_params.get("api_key")
+            or request.query_params.get("token")
             or payload.get("key")
             or payload.get("api_key")
+            or payload.get("token")
             or ""
         ).strip()
         if received_key and received_key != expected_key:

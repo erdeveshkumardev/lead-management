@@ -558,9 +558,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">
-                    Complete IndiaMART Push URL (With CRM Key Token)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700 text-xs">
+                      Complete IndiaMART Push URL
+                    </label>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      (indiamartCrmKey || indiamartKey)
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}>
+                      {(indiamartCrmKey || indiamartKey) ? '✓ CRM Key Attached' : 'Plug & Play (Direct URL)'}
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -577,7 +586,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                     </button>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Is poore URL ko copy karein aur IndiaMART Seller Panel (Push API / CRM Settings) me paste karein.
+                    {(indiamartCrmKey || indiamartKey)
+                      ? '✓ Is URL ko IndiaMART Seller Portal (Lead Manager → CRM Integration) me paste karein. CRM Key URL aur request body dono me verify hogi.'
+                      : 'ℹ️ IndiaMART ko URL me kisi alag token ki zaroorat nahi hoti. Is URL ko copy karke IndiaMART Seller Portal me paste karein. Agar aap security ke liye upar Secret Key enter karenge to URL me automatically key jud jayegi.'}
                   </p>
                 </div>
               </div>
@@ -718,9 +729,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">
-                    Complete TradeIndia Webhook URL (With API Key Token)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700 text-xs">
+                      Complete TradeIndia Webhook URL
+                    </label>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      tradeindiaKey
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}>
+                      {tradeindiaKey ? '✓ API Key Attached' : 'Plug & Play (Direct URL)'}
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -736,7 +756,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                       {copiedKey === 'ti' ? 'Copied!' : 'Copy Full URL'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">TradeIndia Seller Portal → CRM Inquiries Webhook setting me paste karein.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {tradeindiaKey
+                      ? '✓ TradeIndia Seller Portal → CRM Inquiries Webhook setting me ye URL paste karein.'
+                      : 'ℹ️ TradeIndia Webhook URL direct copy-paste kar sakte hain. Agar aapne upar API Key bhari hai to wo URL me automatically jud jayegi.'}
+                  </p>
                 </div>
               </div>
             ) : (
@@ -785,9 +809,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">
-                    Complete Justdial Webhook URL (With API Key Token)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700 text-xs">
+                      Complete Justdial Webhook URL
+                    </label>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      justdialKey
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}>
+                      {justdialKey ? '✓ API Key Attached' : 'Plug & Play (Direct URL)'}
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -803,7 +836,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
                       {copiedKey === 'jd' ? 'Copied!' : 'Copy Full URL'}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">Justdial support ya developer account me ye Push Webhook URL provide karein.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {justdialKey
+                      ? '✓ Justdial executive ya webhook config me ye poora URL provide karein.'
+                      : 'ℹ️ Justdial Push URL direct use kiya ja sakta hai. Agar aapne API key set ki hai to URL me automatically append ho jayegi.'}
+                  </p>
                 </div>
               </div>
             ) : (

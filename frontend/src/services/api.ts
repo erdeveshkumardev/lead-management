@@ -2,12 +2,21 @@ export const getApiBaseUrl = (): string => {
   let url = (import.meta.env.VITE_API_URL || '').trim();
 
   if (typeof window !== 'undefined') {
-    if (!url) {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        url = 'http://localhost:8002/api/v1';
-      } else {
-        url = `${window.location.origin}/api/v1`;
-      }
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    // DYNAMIC PRODUCTION DOMAIN RESOLUTION:
+    // If running in a browser on a live domain/VPS (not localhost/127.0.0.1),
+    // NEVER use hardcoded localhost dev URLs! Automatically bind to window.location.origin.
+    if (!isLocalhost && (!url || url.includes('localhost') || url.includes('127.0.0.1'))) {
+      url = `${window.location.origin}/api/v1`;
+    } else if (!url) {
+      // Local dev fallback
+      url = 'http://localhost:8002/api/v1';
+    } else if (url.startsWith('/')) {
+      // Relative path e.g. '/api/v1' -> prefix with domain origin
+      url = `${window.location.origin}${url}`;
     }
 
     // AUTOMATIC MIXED CONTENT RESOLUTION:

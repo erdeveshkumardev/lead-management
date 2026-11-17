@@ -185,6 +185,7 @@ export interface Lead {
 
 export interface Invoice {
   _id: string;
+  tenant_id?: string;
   invoice_number: string;
   document_type: 'QUOTATION' | 'TAX_INVOICE' | 'PROFORMA';
   lead_id?: string;
@@ -565,8 +566,9 @@ export const api = {
     return res.json();
   },
 
-  getInvoicePdfUrl: (invoiceId: string, tenantId = DEFAULT_TENANT_ID) => {
-    return `${API_BASE_URL}/invoices/${invoiceId}/pdf?tenant_id=${tenantId}`;
+  getInvoicePdfUrl: (invoiceId: string, tenantId?: string) => {
+    const param = tenantId ? `?tenant_id=${tenantId}` : '';
+    return `${API_BASE_URL}/invoices/${invoiceId}/pdf${param}`;
   },
 
   // Products

@@ -193,7 +193,7 @@ export const ConvertToBillModal: React.FC<ConvertToBillModalProps> = ({
               </p>
               <div className="pt-4 flex justify-center gap-3">
                 <a
-                  href={api.getInvoicePdfUrl(createdInvoice._id)}
+                  href={api.getInvoicePdfUrl(createdInvoice._id, createdInvoice.tenant_id || lead.tenant_id)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 shadow-md transition-colors"

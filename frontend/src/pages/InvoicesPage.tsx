@@ -179,7 +179,7 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ tenantId }) => {
 
                       {/* Download PDF Button */}
                       <a
-                        href={api.getInvoicePdfUrl(inv._id)}
+                        href={api.getInvoicePdfUrl(inv._id, inv.tenant_id || tenantId)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"

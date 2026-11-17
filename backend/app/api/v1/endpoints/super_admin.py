@@ -7,6 +7,7 @@ from app.models.user import User, get_default_permissions_for_role
 from app.models.lead import Lead
 from app.models.invoice import Invoice
 from app.core.database import get_document_by_id
+from app.services.notification_service import NotificationService, _generate_clean_temp_password
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin Platform Management"])
 
@@ -213,12 +214,19 @@ async def list_all_companies():
 
 @router.post("/companies")
 async def create_company_with_admin(payload: CreateCompanyRequest):
-    # 1. Check if email already used
-    existing_user = await User.find_one(User.email == payload.admin_email)
+    # 1. Check if email already used (raw dict query safe for Pydantic v2)
+    existing_user = await User.find_one({"email": payload.admin_email})
     if existing_user:
         raise HTTPException(status_code=400, detail="A user with this email already exists.")
 
-    # 2. Create Tenant
+    # 2. Generate secure Temporary Password for company admin
+    temp_password = (
+        payload.admin_password
+        if payload.admin_password and payload.admin_password != "password123"
+        else _generate_clean_temp_password("Admin")
+    )
+
+    # 3. Create Tenant
     slug = payload.company_name.lower().replace(" ", "-").replace(".", "")
     tenant = Tenant(
         company_name=payload.company_name,
@@ -238,23 +246,36 @@ async def create_company_with_admin(payload: CreateCompanyRequest):
     await tenant.insert()
     tenant_id = str(tenant.id)
 
-    # 3. Create Company Admin User
+    # 4. Create Company Admin User with is_first_login = True
     admin_user = User(
         tenant_id=tenant_id,
         full_name=payload.admin_name,
         email=payload.admin_email,
-        hashed_password=payload.admin_password,
+        hashed_password=temp_password,
         phone=payload.phone,
         role="company_admin",
-        permissions=get_default_permissions_for_role("company_admin")
+        permissions=get_default_permissions_for_role("company_admin"),
+        is_first_login=True,
+        temp_password=temp_password
     )
     await admin_user.insert()
 
+    # 5. Dispatch Welcome Onboarding Email with Temporary Password
+    email_result = await NotificationService.notify_company_created(
+        tenant=tenant,
+        admin_user=admin_user,
+        temp_password=temp_password
+    )
+
     return {
         "status": "success",
-        "message": f"Company '{payload.company_name}' created successfully with user limit {payload.max_users_limit}",
+        "message": f"Company '{payload.company_name}' created successfully with user limit {payload.max_users_limit}. Welcome email dispatched.",
         "tenant_id": tenant_id,
-        "admin_user_id": str(admin_user.id)
+        "admin_user_id": str(admin_user.id),
+        "admin_email": admin_user.email,
+        "temp_password": temp_password,
+        "is_first_login": True,
+        "email_status": email_result.get("status", "pending")
     }
 
 

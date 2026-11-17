@@ -390,11 +390,13 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 className="text-xs font-semibold bg-white text-slate-800 border border-indigo-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer disabled:opacity-50"
               >
                 <option value="unassigned" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>-- Unassign / Open Pool --</option>
-                {teamMembers.map((member) => (
-                  <option key={member._id} value={member._id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
-                    {member.full_name} ({member.designation || member.role.replace('_', ' ').toUpperCase()})
-                  </option>
-                ))}
+                {teamMembers
+                  .filter((member) => member.role !== 'company_admin' && member.role !== 'super_admin')
+                  .map((member) => (
+                    <option key={member._id} value={member._id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
+                      {member.full_name} ({member.designation || member.role.replace('_', ' ').toUpperCase()})
+                    </option>
+                  ))}
               </select>
               {isAssigning && (
                 <span className="text-[11px] text-indigo-600 font-bold animate-pulse">Saving...</span>

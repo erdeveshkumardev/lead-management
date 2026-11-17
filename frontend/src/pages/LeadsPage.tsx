@@ -18,7 +18,8 @@ import {
   Bell,
   CalendarPlus,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  MessageSquare
 } from 'lucide-react';
 
 interface LeadsPageProps {
@@ -78,6 +79,29 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
   const [newCategory, setNewCategory] = useState('WARM');
   const [newDealValue, setNewDealValue] = useState<number>(0);
   const [isCreating, setIsCreating] = useState(false);
+
+  // WhatsApp Follow-up Alert Dispatch State
+  const [isSendingWaAlerts, setIsSendingWaAlerts] = useState(false);
+  const [waAlertResult, setWaAlertResult] = useState<any>(null);
+
+  const handleSendWhatsAppAlerts = async () => {
+    setIsSendingWaAlerts(true);
+    setWaAlertResult(null);
+    try {
+      const res = await api.sendFollowupWhatsAppAlerts(tenantId || 'demo_tenant_01');
+      setWaAlertResult(res);
+      setTimeout(() => {
+        // Auto-clear after 8s if success
+        if (res?.status === 'success') {
+          setTimeout(() => setWaAlertResult(null), 8000);
+        }
+      }, 500);
+    } catch (err: any) {
+      setWaAlertResult({ status: 'error', message: err?.message || 'Failed to dispatch alerts.' });
+    } finally {
+      setIsSendingWaAlerts(false);
+    }
+  };
 
   // Load team members for assignment
   useEffect(() => {
@@ -403,7 +427,60 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
             </span>
           )}
         </button>
+
+        {/* WhatsApp Alert Button for Company Admin / Manager */}
+        {!isStaff && (
+          <button
+            type="button"
+            onClick={handleSendWhatsAppAlerts}
+            disabled={isSendingWaAlerts}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            title="Send WhatsApp Follow-up Reminders to all staff members with pending follow-ups"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-white" />
+            <span>{isSendingWaAlerts ? 'Dispatching...' : '📲 Send WhatsApp Alerts to Staff'}</span>
+          </button>
+        )}
       </div>
+
+      {/* WhatsApp Dispatch Result Card */}
+      {waAlertResult && (
+        <div className={`p-3.5 rounded-2xl border text-xs flex items-start justify-between gap-3 ${
+          waAlertResult.status === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : 'bg-rose-50 border-rose-200 text-rose-900'
+        }`}>
+          <div className="space-y-1">
+            <span className="font-bold flex items-center gap-1.5">
+              {waAlertResult.status === 'success' ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-rose-600" />}
+              <span>{waAlertResult.message || 'WhatsApp alert dispatch completed.'}</span>
+            </span>
+            {Array.isArray(waAlertResult.results) && waAlertResult.results.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {waAlertResult.results.map((r: any, idx: number) => (
+                  <div key={idx} className="bg-white/90 px-2.5 py-1 rounded-lg border border-emerald-300 text-[11px] flex items-center gap-2">
+                    <span className="font-bold text-slate-800">👤 {r.staff_name}:</span>
+                    <span className="text-emerald-700 font-semibold">{r.pending_count} pending</span>
+                    {r.whatsapp_link && (
+                      <a
+                        href={r.whatsapp_link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-blue-600 font-bold underline"
+                      >
+                        Open WhatsApp Web
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setWaAlertResult(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* 1. Main Filter Bar (Search + Dropdowns) */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
@@ -485,11 +562,11 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                 onChange={(e) => setSelectedStaff(e.target.value)}
                 className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-xs bg-indigo-50/50 text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
               >
-                <option value="all">👤 All Staff Members</option>
-                <option value="unassigned">⚠️ Unassigned Leads</option>
+                <option value="all">👥 All Team Members (All Leads)</option>
+                <option value="unassigned">⚠️ Unassigned Leads (Pool)</option>
                 {teamMembers.map((m) => (
                   <option key={m._id} value={m._id}>
-                    {m.full_name}
+                    👤 {m.full_name} ({m.designation || (m.role === 'company_admin' ? 'Company Admin' : m.role === 'manager' ? 'Manager' : 'Staff')})
                   </option>
                 ))}
               </select>
@@ -701,11 +778,13 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({
                             title="Assign to Staff / Sales Rep"
                           >
                             <option value="unassigned">⚠️ Unassigned</option>
-                            {teamMembers.map((m) => (
-                              <option key={m._id} value={m._id}>
-                                👤 {m.full_name}
-                              </option>
-                            ))}
+                            {teamMembers
+                              .filter((m) => m.role !== 'company_admin' && m.role !== 'super_admin')
+                              .map((m) => (
+                                <option key={m._id} value={m._id}>
+                                  👤 {m.full_name}
+                                </option>
+                              ))}
                           </select>
                         ) : (
                           <div>

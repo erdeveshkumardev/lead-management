@@ -73,6 +73,18 @@ class User(Document):
     permissions: Dict[str, bool] = Field(default_factory=dict)
     is_active: bool = True
     assigned_leads_count: int = 0
+    
+    # First-time login and security profile
+    is_first_login: bool = False
+    temp_password: Optional[str] = None
+    
+    # Extended user profile
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    receive_whatsapp_notifications: bool = True
+    receive_email_notifications: bool = True
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

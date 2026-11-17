@@ -16,7 +16,8 @@ import {
   ChevronDown,
   Sparkles,
   Globe,
-  Sliders
+  Sliders,
+  User
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ interface SidebarProps {
   tenantInfo: TenantInfo | null;
   onLogout: () => void;
   onSwitchUser?: (role: 'super_admin' | 'company_admin' | 'staff') => void;
+  onOpenProfile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   tenantInfo,
   onLogout,
+  onOpenProfile,
 }) => {
   const isSuperAdmin = currentUser.role === 'super_admin';
   const isCompanyAdmin = currentUser.role === 'company_admin';
@@ -144,13 +147,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Bottom: Authenticated User Card & Logout */}
       <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 space-y-2">
-        <div className="flex items-center space-x-2.5 p-2 rounded-2xl bg-slate-800/60 border border-slate-700/60">
-          <div className="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-xs border border-indigo-400/30">
+        <div 
+          onClick={onOpenProfile}
+          className="flex items-center space-x-2.5 p-2 rounded-2xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/40 transition-all cursor-pointer group"
+          title="Click to view & edit My Profile / Change Password"
+        >
+          <div className="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-xs border border-indigo-400/30 group-hover:scale-105 transition-transform">
             {currentUser.full_name?.charAt(0) || 'U'}
           </div>
           <div className="min-w-0 flex-1">
-            <span className="block text-xs font-bold text-white truncate">{currentUser.full_name}</span>
-            <span className="block text-[10px] text-slate-400 truncate">{currentUser.email}</span>
+            <span className="block text-xs font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
+              {currentUser.full_name}
+            </span>
+            <span className="block text-[10px] text-slate-400 truncate">
+              {currentUser.role.replace('_', ' ').toUpperCase()} • Profile &rarr;
+            </span>
           </div>
         </div>
 

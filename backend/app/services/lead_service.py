@@ -41,22 +41,24 @@ def normalize_phone_number(phone_raw: str, default_region: str = "IN") -> str:
 
 async def assign_lead_round_robin(tenant_id: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Round-robin lead assignment among active agents of the tenant.
-    Picks the agent with the lowest assigned lead count.
+    Round-robin lead assignment among active agents/staff of the tenant.
+    Picks the sales agent with the lowest assigned lead count.
+    Excludes Company Admin and Super Admin (admins cannot be assigned leads).
     """
     agents = await User.find(
-        {"tenant_id": tenant_id, "is_active": True, "role": {"$in": ["agent", "staff"]}}
+        {
+            "tenant_id": tenant_id,
+            "is_active": True,
+            "role": {"$nin": ["company_admin", "super_admin"]}
+        }
     ).sort("assigned_leads_count").to_list()
 
     if not agents:
-        # Fallback to any active user (e.g. admin)
-        users = await User.find({"tenant_id": tenant_id, "is_active": True}).to_list()
-        if users:
-            return str(users[0].id), users[0].full_name
+        # No staff available - lead remains in unassigned pool (admins never assigned)
         return None, None
 
     selected_agent = agents[0]
-    selected_agent.assigned_leads_count += 1
+    selected_agent.assigned_leads_count = (selected_agent.assigned_leads_count or 0) + 1
     await selected_agent.save()
     return str(selected_agent.id), selected_agent.full_name
 

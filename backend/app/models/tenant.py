@@ -53,12 +53,67 @@ class IntegrationConfig(BaseModel):
     status: str = "Not Configured"  # "Connected", "Configured", "Error", "Not Configured"
 
 
+def get_default_website_integration() -> IntegrationConfig:
+    return IntegrationConfig(
+        is_enabled=True,
+        status="Configured",
+        webhook_token=generate_webhook_token(),
+        secret_key=generate_secret_key()
+    )
+
+
 class TenantIntegrations(BaseModel):
     indiamart: IntegrationConfig = Field(default_factory=IntegrationConfig)
     facebook: IntegrationConfig = Field(default_factory=IntegrationConfig)
     tradeindia: IntegrationConfig = Field(default_factory=IntegrationConfig)
     justdial: IntegrationConfig = Field(default_factory=IntegrationConfig)
-    website: IntegrationConfig = Field(default_factory=IntegrationConfig)
+    website: IntegrationConfig = Field(default_factory=get_default_website_integration)
+
+
+class SmsConfig(BaseModel):
+    is_enabled: bool = False
+    provider: str = "custom_http"  # "fast2sms", "msg91", "twilio", "custom_http"
+    api_key: Optional[str] = None
+    sender_id: Optional[str] = None
+    route: Optional[str] = "dlt"
+    template_id: Optional[str] = None
+    custom_url: Optional[str] = None  # e.g. https://api.sms.com/send?apikey={API_KEY}&to={TO}&msg={MESSAGE}
+    status: str = "Not Configured"
+
+
+class WhatsAppConfig(BaseModel):
+    is_enabled: bool = False
+    provider: str = "cloud_api"  # "cloud_api", "twilio", "gupshup", "custom_webhook"
+    phone_number_id: Optional[str] = None
+    waba_id: Optional[str] = None  # WhatsApp Business Account ID
+    access_token: Optional[str] = None
+    account_sid: Optional[str] = None  # For Twilio
+    auth_token: Optional[str] = None   # For Twilio
+    from_phone_number: Optional[str] = None
+    custom_webhook_url: Optional[str] = None
+    pending_followup_template: Optional[str] = "Hello {staff_name}, you have {pending_count} pending follow-up(s) waiting in LeadCRM today. Please review: {crm_url}"
+    status: str = "Not Configured"
+
+
+class EmailConfig(BaseModel):
+    is_enabled: bool = False
+    mode: str = "smtp"  # "smtp" or "api"
+    smtp_host: Optional[str] = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_use_tls: bool = True
+    from_name: Optional[str] = "LeadCRM"
+    from_email: Optional[str] = None
+    api_provider: Optional[str] = "sendgrid"  # "sendgrid", "resend", "mailgun", "custom_http"
+    api_key: Optional[str] = None
+    status: str = "Not Configured"
+
+
+class TenantCommunicationSettings(BaseModel):
+    sms: SmsConfig = Field(default_factory=SmsConfig)
+    whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
 
 
 class Tenant(Document):
@@ -82,6 +137,9 @@ class Tenant(Document):
 
     # Lead Marketplace API Settings per Company (IndiaMART, Facebook, TradeIndia, Justdial, Website)
     integrations: TenantIntegrations = Field(default_factory=TenantIntegrations)
+
+    # Communication Settings (SMS, WhatsApp, Email SMTP/API)
+    communication_settings: TenantCommunicationSettings = Field(default_factory=TenantCommunicationSettings)
 
     # Company Level Masters (Categories, Lost Reasons, Follow-up Types, Campaigns, Departments, Designations)
     company_masters: Dict[str, Any] = Field(default_factory=dict)

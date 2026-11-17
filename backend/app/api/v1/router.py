@@ -10,6 +10,8 @@ from app.api.v1.endpoints import (
     analytics,
     tenants,
     masters,
+    profile,
+    settings_communication,
 )
 
 api_router = APIRouter()
@@ -24,3 +26,5 @@ api_router.include_router(products.router)
 api_router.include_router(analytics.router)
 api_router.include_router(tenants.router)
 api_router.include_router(masters.router)
+api_router.include_router(profile.router)
+api_router.include_router(settings_communication.router)

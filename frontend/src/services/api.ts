@@ -39,6 +39,75 @@ export interface CurrentUser {
   role: 'super_admin' | 'company_admin' | 'manager' | 'staff';
   tenant_id: string;
   permissions: Record<string, boolean>;
+  is_first_login?: boolean;
+  phone?: string;
+  whatsapp_number?: string;
+  designation?: string;
+  department?: string;
+  avatar_url?: string;
+  bio?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  whatsapp_number?: string;
+  role: string;
+  designation?: string;
+  department?: string;
+  bio?: string;
+  avatar_url?: string;
+  company_name: string;
+  tenant_id: string;
+  is_first_login: boolean;
+  assigned_leads_count: number;
+  receive_whatsapp_notifications: boolean;
+  receive_email_notifications: boolean;
+  created_at: string;
+}
+
+export interface CommunicationSettings {
+  tenant_id: string;
+  company_name: string;
+  sms: {
+    is_enabled: boolean;
+    provider: string;
+    api_key?: string;
+    sender_id?: string;
+    route?: string;
+    template_id?: string;
+    custom_url?: string;
+    status: string;
+  };
+  whatsapp: {
+    is_enabled: boolean;
+    provider: string;
+    phone_number_id?: string;
+    waba_id?: string;
+    access_token?: string;
+    account_sid?: string;
+    auth_token?: string;
+    from_phone_number?: string;
+    custom_webhook_url?: string;
+    pending_followup_template?: string;
+    status: string;
+  };
+  email: {
+    is_enabled: boolean;
+    mode: 'smtp' | 'api';
+    smtp_host?: string;
+    smtp_port?: number;
+    smtp_user?: string;
+    smtp_password?: string;
+    smtp_use_tls?: boolean;
+    from_name?: string;
+    from_email?: string;
+    api_provider?: string;
+    api_key?: string;
+    status: string;
+  };
 }
 
 export interface TenantInfo {
@@ -567,6 +636,68 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ masters })
     });
+    return res.json();
+  },
+
+  // -------------------------------------------------------------
+  // USER PROFILE & PASSWORD CHANGE
+  // -------------------------------------------------------------
+  getUserProfile: async (userId: string): Promise<UserProfile> => {
+    const res = await fetch(`${API_BASE_URL}/profile/${userId}`);
+    return res.json();
+  },
+
+  updateUserProfile: async (userId: string, data: any) => {
+    const res = await fetch(`${API_BASE_URL}/profile/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  changePassword: async (data: { user_id: string; current_password?: string; new_password: string; confirm_password: string }) => {
+    const res = await fetch(`${API_BASE_URL}/profile/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  // -------------------------------------------------------------
+  // COMMUNICATION SETTINGS (SMS, WHATSAPP, EMAIL SMTP/API)
+  // -------------------------------------------------------------
+  getCommunicationSettings: async (tenantId = DEFAULT_TENANT_ID): Promise<CommunicationSettings> => {
+    const res = await fetch(`${API_BASE_URL}/settings/communication?tenant_id=${tenantId}`);
+    return res.json();
+  },
+
+  updateCommunicationSettings: async (tenantId = DEFAULT_TENANT_ID, data: any) => {
+    const res = await fetch(`${API_BASE_URL}/settings/communication?tenant_id=${tenantId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  testCommunication: async (tenantId = DEFAULT_TENANT_ID, data: { channel: string; recipient: string; message?: string }) => {
+    const res = await fetch(`${API_BASE_URL}/settings/communication/test?tenant_id=${tenantId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  // -------------------------------------------------------------
+  // FOLLOW-UP WHATSAPP REMINDERS DISPATCH
+  // -------------------------------------------------------------
+  sendFollowupWhatsAppAlerts: async (tenantId = DEFAULT_TENANT_ID, staffUserId?: string) => {
+    let url = `${API_BASE_URL}/leads/send-followup-whatsapp-alerts?tenant_id=${tenantId}`;
+    if (staffUserId) url += `&staff_user_id=${staffUserId}`;
+    const res = await fetch(url, { method: 'POST' });
     return res.json();
   }
 };

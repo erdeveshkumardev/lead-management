@@ -36,6 +36,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [newMemberCredentials, setNewMemberCredentials] = useState<{ name: string; email: string; temp_password: string } | null>(null);
 
   // Permission toggles
   const [permsState, setPermsState] = useState<Record<string, boolean>>({});
@@ -77,12 +78,16 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
       if (res.status === 'success') {
         setSuccessMsg(res.message);
         setShowAddModal(false);
+        setNewMemberCredentials({
+          name: fullName,
+          email,
+          temp_password: res.temp_password || password
+        });
         setFullName('');
         setEmail('');
         setPhone('');
         setCustomDesignation('');
         loadTeam();
-        setTimeout(() => setSuccessMsg(''), 4000);
       } else {
         setErrorMsg(res.detail || 'Failed to add team member.');
       }
@@ -188,6 +193,33 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ tenantId }) => {
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
           <span className="font-semibold">{successMsg}</span>
+        </div>
+      )}
+
+      {/* Credentials & Email Dispatch Notice Banner */}
+      {newMemberCredentials && (
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-start justify-between gap-3 text-xs shadow-sm">
+          <div className="space-y-1">
+            <span className="font-bold text-emerald-950 flex items-center gap-1.5 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span>Team Member Added & Welcome Email Dispatched!</span>
+            </span>
+            <p className="text-emerald-800">
+              An invitation email has been sent to <strong>{newMemberCredentials.email}</strong> with their login link and temporary password.
+            </p>
+            <div className="mt-2 bg-white px-3 py-1.5 rounded-xl border border-emerald-300 inline-block font-mono text-slate-800">
+              Temporary Password: <strong className="text-indigo-600 select-all font-bold">{newMemberCredentials.temp_password}</strong>
+            </div>
+            <p className="text-[11px] text-emerald-700 italic block pt-0.5">
+              💡 When they sign in for the first time, a setup prompt will guide them to set their permanent password in their profile.
+            </p>
+          </div>
+          <button 
+            onClick={() => setNewMemberCredentials(null)} 
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 

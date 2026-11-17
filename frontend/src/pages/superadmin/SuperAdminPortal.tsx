@@ -58,6 +58,9 @@ export const SuperAdminPortal: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('password123');
   const [gstin, setGstin] = useState('');
   const [city, setCity] = useState('');
+  const [citiesList, setCitiesList] = useState<any[]>([]);
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -71,12 +74,17 @@ export const SuperAdminPortal: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsRes, compRes] = await Promise.all([
+      const [statsRes, compRes, mastersRes] = await Promise.all([
         api.getSuperAdminStats(),
-        api.getSuperAdminCompanies()
+        api.getSuperAdminCompanies(),
+        api.getGlobalMasters().catch(() => ({}))
       ]);
       setStats(statsRes);
       if (Array.isArray(compRes)) setCompanies(compRes);
+      if (mastersRes && Array.isArray(mastersRes.city)) {
+        const sorted = [...mastersRes.city].sort((a: any, b: any) => a.name.localeCompare(b.name));
+        setCitiesList(sorted);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -88,8 +96,21 @@ export const SuperAdminPortal: React.FC = () => {
     loadData();
   }, []);
 
-  const handleCreateCompany = async (e: React.FormEvent) => {
+  const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!companyName.trim()) {
+      setErrorMsg('Please enter company name.');
+      return;
+    }
+    if (!adminEmail.trim()) {
+      setErrorMsg('Please enter admin email.');
+      return;
+    }
+    setErrorMsg('');
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmAndCreate = async () => {
     setIsSubmitting(true);
     setErrorMsg('');
     try {
@@ -107,18 +128,23 @@ export const SuperAdminPortal: React.FC = () => {
 
       if (res.status === 'success') {
         setSuccessMsg(res.message);
+        setShowConfirmModal(false);
         setShowCreateModal(false);
         setCompanyName('');
         setAdminName('');
         setAdminEmail('');
         setGstin('');
+        setCity('');
+        setIsCustomCity(false);
         loadData();
         setTimeout(() => setSuccessMsg(''), 4000);
       } else {
         setErrorMsg(res.detail || 'Failed to create company.');
+        setShowConfirmModal(false);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error occurred.');
+      setShowConfirmModal(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -573,12 +599,18 @@ export const SuperAdminPortal: React.FC = () => {
 
                 <div>
                   <label className="font-semibold text-slate-700 block mb-1">City / Region</label>
-                  <input
-                    type="text"
+                  <select
                     value={editCompCity}
                     onChange={(e) => setEditCompCity(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2"
-                  />
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 bg-white"
+                  >
+                    <option value="">-- Select City from Master --</option>
+                    {citiesList.map((c) => (
+                      <option key={c.id || c.code || c.name} value={c.name}>
+                        {c.name} {c.extra_data?.state ? `(${c.extra_data.state})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -796,7 +828,7 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleCreateCompany} className="space-y-3.5 text-xs">
+            <form onSubmit={handleOpenConfirmModal} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="font-semibold text-slate-700 block mb-1">Company / Business Name *</label>
@@ -893,14 +925,38 @@ export const SuperAdminPortal: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-slate-700 font-semibold block mb-1">City</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Ahmedabad"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
-                  />
+                  <label className="text-slate-700 font-semibold block mb-1">City (From City Master)</label>
+                  <select
+                    value={isCustomCity ? 'other' : city}
+                    onChange={(e) => {
+                      if (e.target.value === 'other') {
+                        setIsCustomCity(true);
+                        setCity('');
+                      } else {
+                        setIsCustomCity(false);
+                        setCity(e.target.value);
+                      }
+                    }}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-slate-800 bg-white font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="">-- Select City from Table --</option>
+                    {citiesList.map((c) => (
+                      <option key={c.id || c.code || c.name} value={c.name}>
+                        📍 {c.name} {c.extra_data?.state ? `(${c.extra_data.state})` : ''}
+                      </option>
+                    ))}
+                    <option value="other">➕ Other City (Manual Entry)</option>
+                  </select>
+                  {isCustomCity && (
+                    <input
+                      type="text"
+                      placeholder="Enter city name..."
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="mt-2 w-full border border-indigo-300 rounded-xl px-3 py-1.5 text-slate-800 bg-indigo-50/20 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                  )}
                 </div>
               </div>
 
@@ -917,10 +973,84 @@ export const SuperAdminPortal: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-5 py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Registering...' : 'Register Company & Issue Limit'}
+                  Register Company & Issue Limit
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION POPUP BEFORE ADDING COMPANY */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/65 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 text-slate-900 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="h-10 w-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg border border-amber-300">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-900">Confirm Company Registration</h3>
+                <p className="text-xs text-slate-500">Kripya company details check karein</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 space-y-2 text-xs border border-slate-200">
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">Company Name:</span>
+                <span className="font-bold text-slate-900">{companyName}</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">Business Model:</span>
+                <span className="font-bold text-slate-800 capitalize">{companyType}</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">User Quota:</span>
+                <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                  {maxUsers} Staff Seats
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">Admin Name:</span>
+                <span className="font-bold text-slate-900">{adminName || 'Admin'}</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">Admin Email:</span>
+                <span className="font-bold text-slate-900 font-mono text-[11px]">{adminEmail}</span>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span className="text-slate-500 font-semibold">City:</span>
+                <span className="font-bold text-slate-900">{city || 'Not specified'}</span>
+              </div>
+              {gstin && (
+                <div className="flex justify-between items-center py-0.5">
+                  <span className="text-slate-500 font-semibold">GSTIN:</span>
+                  <span className="font-bold text-slate-900 font-mono uppercase">{gstin}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-600 font-medium bg-amber-50/70 p-2.5 rounded-xl border border-amber-200">
+              ℹ️ Confirm karne par hi company database me add hogi aur admin credentials generate honge.
+            </p>
+
+            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel / Edit
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={handleConfirmAndCreate}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 disabled:opacity-50 transition-colors"
+              >
+                {isSubmitting ? 'Registering...' : 'Yes, Confirm & Add Company'}
+              </button>
+            </div>
           </div>
         </div>
       )}

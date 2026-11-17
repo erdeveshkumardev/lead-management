@@ -151,7 +151,11 @@ async def login(payload: LoginRequest):
             "email": user.email,
             "role": user.role,
             "tenant_id": user.tenant_id,
-            "permissions": user.permissions or get_default_permissions_for_role(user.role)
+            "permissions": user.permissions or get_default_permissions_for_role(user.role),
+            "is_first_login": getattr(user, "is_first_login", False),
+            "phone": getattr(user, "phone", None),
+            "designation": getattr(user, "designation", None),
+            "department": getattr(user, "department", None)
         },
         "tenant": tenant_info
     }

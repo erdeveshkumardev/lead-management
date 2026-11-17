@@ -14,7 +14,9 @@ import { SuperAdminPortal } from './pages/superadmin/SuperAdminPortal';
 import { GlobalMastersPortal } from './pages/superadmin/GlobalMastersPortal';
 import { CompanyMastersPage } from './pages/masters/CompanyMastersPage';
 import { TeamManager } from './pages/team/TeamManager';
-import { Lead, PipelineStage, CurrentUser, TenantInfo, api } from './services/api';
+import { FirstLoginPasswordModal } from './components/FirstLoginPasswordModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import { Lead, PipelineStage, CurrentUser, TenantInfo, api, API_BASE_URL } from './services/api';
 import { Zap, X, CheckCircle2, Sliders, ShieldCheck, Building2, Bell, ChevronRight, AlertCircle } from 'lucide-react';
 
 export function App() {
@@ -44,6 +46,7 @@ export function App() {
   const [selectedLeadForBill, setSelectedLeadForBill] = useState<Lead | null>(null);
   const [showSimulateModal, setShowSimulateModal] = useState<boolean>(false);
   const [showStagesModal, setShowStagesModal] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [simulateSuccess, setSimulateSuccess] = useState<string>('');
 
   const activeTenantId = tenantInfo?.id || currentUser?.tenant_id || 'demo_tenant_01';
@@ -278,7 +281,7 @@ export function App() {
     }
 
     try {
-      const res = await fetch(`http://localhost:8002/api/v1/webhooks/${source}/${activeTenantId}`, {
+      const res = await fetch(`${API_BASE_URL}/webhooks/${source}/${activeTenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -342,6 +345,7 @@ export function App() {
         tenantInfo={tenantInfo}
         onLogout={handleLogout}
         onSwitchUser={handleSwitchUser}
+        onOpenProfile={() => setShowProfileModal(true)}
       />
 
       {/* 3. Main Workspace Area */}
@@ -402,6 +406,22 @@ export function App() {
                     {followUpSummary.today_count + followUpSummary.overdue_count}
                   </span>
                 )}
+              </button>
+            )}
+
+            {/* User Profile Pill */}
+            {currentUser && (
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 transition-colors cursor-pointer group"
+                title="View & Edit Profile / Change Password"
+              >
+                <div className="h-7 w-7 rounded-lg bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-xs border border-indigo-400/30 group-hover:scale-105 transition-transform">
+                  {currentUser.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <span className="text-xs font-bold text-white hidden sm:inline max-w-[110px] truncate">
+                  {currentUser.full_name}
+                </span>
               </button>
             )}
           </div>
@@ -544,6 +564,28 @@ export function App() {
           onSaved={() => {
             loadStages(activeTenantId);
             loadKanban(activeTenantId);
+          }}
+        />
+      )}
+
+      {/* 4. First-Time Sign In Forced Password Reset Modal */}
+      {currentUser && currentUser.is_first_login && (
+        <FirstLoginPasswordModal
+          currentUser={currentUser}
+          onPasswordChanged={(updated) => {
+            setCurrentUser(updated);
+          }}
+          onOpenProfile={() => setShowProfileModal(true)}
+        />
+      )}
+
+      {/* 5. Comprehensive User Profile & Password Change Modal */}
+      {showProfileModal && currentUser && (
+        <UserProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onUserUpdated={(updated) => {
+            setCurrentUser(updated);
           }}
         />
       )}

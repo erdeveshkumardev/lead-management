@@ -354,12 +354,17 @@ async def website_form_capture(
             or ""
         ).strip()
 
-        # If token is configured, check it. If not configured yet, fallback to tenant_id match
-        expected_token = public_token or str(tenant.id)
-        if provided_token != expected_token:
+        # Allowed tokens: public webhook token, tenant mongo ID, or tenant slug
+        valid_tokens = {str(tenant.id)}
+        if public_token:
+            valid_tokens.add(public_token)
+        if tenant.slug:
+            valid_tokens.add(tenant.slug)
+
+        if not provided_token or provided_token not in valid_tokens:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized: Invalid or missing Webhook Security Token. Pass 'X-Webhook-Token' header or '?token=' query parameter."
+                detail=f"Unauthorized: Invalid or missing Webhook Security Token. Pass 'X-Webhook-Token' header or '?token={public_token or str(tenant.id)}' in your URL."
             )
 
         # Domain Whitelist / CORS / Origin verification for Frontend submissions

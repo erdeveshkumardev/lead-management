@@ -15,6 +15,7 @@ from app.schemas.lead import (
 from pydantic import BaseModel
 from app.services.lead_service import process_and_save_lead
 from app.services.adapters.base import StandardLeadDTO
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/leads", tags=["Leads CRM"])
 
@@ -482,6 +483,12 @@ async def assign_lead(lead_id: str, tenant_id: str, payload: LeadAssignRequest):
         if not user:
             raise HTTPException(status_code=404, detail="Staff member not found")
 
+        if user.role in ["company_admin", "super_admin"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Company Admin or Super Admin cannot be assigned leads. Leads can only be assigned to Sales Staff and Managers."
+            )
+
         old_assignee = lead.assigned_to_user_name or "Unassigned"
         lead.assigned_to_user_id = str(user.id)
         lead.assigned_to_user_name = user.full_name
@@ -646,4 +653,91 @@ async def complete_follow_up(lead_id: str, tenant_id: str, payload: CompleteFoll
     lead.updated_at = now
     await lead.save()
     return {"status": "success", "message": "Follow-up marked as completed", "lead": lead}
+
+
+@router.post("/send-followup-whatsapp-alerts")
+async def send_followup_whatsapp_alerts(
+    tenant_id: str,
+    staff_user_id: Optional[str] = None
+):
+    """
+    Scans all pending follow-ups for the company, groups them by staff member,
+    and dispatches a WhatsApp notification to each staff member with pending count & preview.
+    """
+    tenant = await get_document_by_id(Tenant, tenant_id)
+    if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"slug": tenant_id}, {"company_name": tenant_id}]})
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    target_tenant_id = str(tenant.id)
+    allowed_ids = [target_tenant_id]
+    if tenant.slug in ["apex-machineries", "demo_tenant_01"] or tenant_id == "demo_tenant_01":
+        allowed_ids.append("demo_tenant_01")
+
+    # Fetch all leads with pending next follow-up
+    query: Dict[str, Any] = {
+        "tenant_id": {"$in": allowed_ids},
+        "next_follow_up.status": "PENDING"
+    }
+    if staff_user_id:
+        query["assigned_to_user_id"] = staff_user_id
+
+    leads = await Lead.find(query).to_list()
+    if not leads:
+        return {
+            "status": "success",
+            "message": "No pending follow-ups found for alerting.",
+            "total_staff_notified": 0,
+            "total_pending_leads": 0,
+            "results": []
+        }
+
+    # Group leads by assigned_to_user_id
+    staff_leads_map: Dict[str, List[Lead]] = {}
+    unassigned_leads: List[Lead] = []
+
+    for l in leads:
+        uid = l.assigned_to_user_id
+        if uid:
+            staff_leads_map.setdefault(uid, []).append(l)
+        else:
+            unassigned_leads.append(l)
+
+    results = []
+    notified_count = 0
+
+    for uid, staff_leads in staff_leads_map.items():
+        staff_user = await get_document_by_id(User, uid)
+        if not staff_user:
+            staff_user = await User.find_one({"_id": uid})
+        if not staff_user:
+            continue
+
+        res = await NotificationService.notify_staff_pending_followups(
+            tenant=tenant,
+            staff_user=staff_user,
+            pending_leads=staff_leads
+        )
+        results.append({
+            "staff_id": uid,
+            "staff_name": staff_user.full_name,
+            "phone": staff_user.whatsapp_number or staff_user.phone,
+            "pending_count": len(staff_leads),
+            "status": res.get("status"),
+            "whatsapp_link": res.get("whatsapp_link"),
+            "message": res.get("message")
+        })
+        if res.get("status") in ["success", "simulated"]:
+            notified_count += 1
+
+    return {
+        "status": "success",
+        "message": f"WhatsApp follow-up reminders processed for {notified_count} staff member(s).",
+        "total_staff_notified": notified_count,
+        "total_pending_leads": len(leads),
+        "unassigned_pending_leads": len(unassigned_leads),
+        "results": results
+    }
+
 

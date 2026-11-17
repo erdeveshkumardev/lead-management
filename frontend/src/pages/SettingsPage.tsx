@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, CurrentUser, API_BASE_URL } from '../services/api';
+import { CommunicationSettingsTab } from '../components/CommunicationSettingsTab';
 import { 
   Building2, 
   Plus, 
@@ -36,7 +37,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
   const activeTenant = tenantId || currentUser?.tenant_id || 'demo_tenant_01';
 
   // Sub-tabs for Company Admin
-  const [activeTab, setActiveTab] = useState<'integrations' | 'profile' | 'custom_fields'>('integrations');
+  const [activeTab, setActiveTab] = useState<'communications' | 'integrations' | 'profile' | 'custom_fields'>('communications');
 
   // Company Profile state
   const [companyName, setCompanyName] = useState('Apex Machineries Pvt Ltd');
@@ -458,6 +459,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
         {/* Tab Pills */}
         <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
           <button
+            onClick={() => setActiveTab('communications')}
+            className={`px-3 py-1.5 rounded-xl transition-all ${
+              activeTab === 'communications'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            SMS, WhatsApp & Mail
+          </button>
+          <button
             onClick={() => setActiveTab('integrations')}
             className={`px-3 py-1.5 rounded-xl transition-all ${
               activeTab === 'integrations'
@@ -495,6 +506,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser, tenantI
           <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" />
           <span className="font-bold">{savedAlert}</span>
         </div>
+      )}
+
+      {/* TAB 0: Communication Settings (SMS, WhatsApp, Mail) */}
+      {activeTab === 'communications' && (
+        <CommunicationSettingsTab tenantId={activeTenant} />
       )}
 
       {/* TAB 1: Marketplace & Inbound Lead APIs */}

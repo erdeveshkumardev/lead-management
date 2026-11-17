@@ -7,7 +7,6 @@ import {
   Wallet, 
   ArrowUpRight, 
   Clock, 
-  Sparkles, 
   Phone, 
   Building2, 
   Calendar, 
@@ -101,34 +100,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/30 inline-flex items-center gap-1 mb-2">
-            <Sparkles className="h-3 w-3" />
-            <span>Lead-to-Cash Command Center</span>
-          </span>
-          <h2 className="text-2xl font-bold tracking-tight">Sales & Revenue Dashboard</h2>
-          <p className="text-blue-100 text-xs sm:text-sm mt-1 max-w-xl">
-            Real-time pipeline performance. Review inbound inquiries, track conversion velocity, and generate compliant GST Tax Invoices.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onNavigateToKanban}
-            className="px-4 py-2.5 rounded-xl bg-white text-blue-700 font-bold text-xs hover:bg-blue-50 transition-colors shadow-sm"
-          >
-            Open Pipeline
-          </button>
-          <button
-            onClick={onNavigateToInvoices}
-            className="px-4 py-2.5 rounded-xl bg-blue-600/60 hover:bg-blue-600 text-white font-bold text-xs border border-white/20 transition-colors"
-          >
-            View Invoices
-          </button>
-        </div>
-      </div>
-
       {/* 4 Primary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Leads */}

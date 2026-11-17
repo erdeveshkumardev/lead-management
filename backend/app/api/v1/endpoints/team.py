@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr
 from app.models.user import User, get_default_permissions_for_role
 from app.models.tenant import Tenant
 from app.core.database import get_document_by_id
+from app.services.notification_service import NotificationService, _generate_clean_temp_password
 
 router = APIRouter(prefix="/team", tags=["Company Team & Permission Manager"])
 
@@ -71,7 +72,7 @@ async def add_team_member(tenant_id: str, payload: AddTeamMemberRequest):
         )
 
     # Check if email is already taken
-    existing = await User.find_one(User.email == payload.email)
+    existing = await User.find_one({"email": payload.email})
     if existing:
         raise HTTPException(status_code=400, detail="A user with this email already exists.")
 
@@ -80,23 +81,41 @@ async def add_team_member(tenant_id: str, payload: AddTeamMemberRequest):
     if payload.custom_permissions:
         perms.update(payload.custom_permissions)
 
+    # Generate clean Temporary Password
+    temp_password = (
+        payload.password
+        if payload.password and payload.password != "password123"
+        else _generate_clean_temp_password("Staff")
+    )
+
     new_user = User(
         tenant_id=target_tenant_id,
         full_name=payload.full_name,
         email=payload.email,
-        hashed_password=payload.password,
+        hashed_password=temp_password,
         phone=payload.phone,
         role=payload.role,
         designation=payload.designation,
         department=payload.department,
-        permissions=perms
+        permissions=perms,
+        is_first_login=True,
+        temp_password=temp_password
     )
     await new_user.insert()
 
+    # Dispatch Welcome Email with Temporary Password
+    email_res = await NotificationService.notify_team_member_created(
+        tenant=tenant,
+        member_user=new_user,
+        temp_password=temp_password
+    )
+
     return {
         "status": "success",
-        "message": f"Team member {payload.full_name} added as {payload.role.upper()} ({payload.designation or 'Staff'})",
-        "member": new_user
+        "message": f"Team member {payload.full_name} added as {payload.role.upper()} ({payload.designation or 'Staff'}). Welcome email dispatched.",
+        "member": new_user,
+        "temp_password": temp_password,
+        "email_status": email_res.get("status", "pending")
     }
 
 

@@ -281,7 +281,10 @@ export function App() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/webhooks/${source}/${activeTenantId}`, {
+      const webhookUrl = source === 'website' 
+        ? `${API_BASE_URL}/webhooks/${source}/${activeTenantId}?token=${activeTenantId}`
+        : `${API_BASE_URL}/webhooks/${source}/${activeTenantId}`;
+      const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

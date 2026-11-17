@@ -105,9 +105,8 @@ async def process_and_save_lead(dto: StandardLeadDTO) -> Tuple[Lead, bool]:
         logger.info(f"Duplicate lead detected for phone {norm_phone}. Updated lead ID {existing_lead.id}")
         return existing_lead, True
 
-    # New Lead -> Assign Agent
-    agent_id, agent_name = await assign_lead_round_robin(dto.tenant_id)
-
+    # All incoming new leads start in Unassigned (Open Pool) state
+    # Company Admin / Sales Manager can manually review and assign them to staff
     new_lead = Lead(
         tenant_id=dto.tenant_id,
         source=dto.source,
@@ -126,30 +125,20 @@ async def process_and_save_lead(dto: StandardLeadDTO) -> Tuple[Lead, bool]:
         deal_value=dto.deal_value,
         stage="NEW",
         category=getattr(dto, 'category', 'WARM') or 'WARM',
-        assigned_to_user_id=agent_id,
-        assigned_to_user_name=agent_name,
+        assigned_to_user_id=None,
+        assigned_to_user_name=None,
         custom_fields=dto.custom_fields,
         raw_payload=dto.raw_payload,
         timeline=[
             TimelineItem(
                 activity_type="LEAD_CREATED",
-                note=f"New lead captured from {dto.source.upper()}.",
+                note=f"New lead captured from {dto.source.upper()}. Placed in Open Pool (Unassigned).",
                 performed_by_id="SYSTEM",
                 performed_by_name="Ingestion Worker"
             )
         ]
     )
 
-    if agent_name:
-        new_lead.timeline.append(
-            TimelineItem(
-                activity_type="ASSIGNMENT",
-                note=f"Auto-assigned to {agent_name} via Round-Robin rule.",
-                performed_by_id="SYSTEM",
-                performed_by_name="Rule Engine"
-            )
-        )
-
     await new_lead.insert()
-    logger.info(f"Created new lead ID {new_lead.id} assigned to {agent_name}")
+    logger.info(f"Created new lead ID {new_lead.id} in Unassigned pool from {dto.source.upper()}")
     return new_lead, False

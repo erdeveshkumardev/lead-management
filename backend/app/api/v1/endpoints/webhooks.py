@@ -144,6 +144,7 @@ async def tradeindia_webhook(
             request.headers.get("X-TradeIndia-Key")
             or request.headers.get("X-API-Key")
             or request.query_params.get("key")
+            or request.query_params.get("api_key")
             or payload.get("key")
             or payload.get("api_key")
             or ""
@@ -251,6 +252,8 @@ async def justdial_webhook(
         received_key = (
             request.headers.get("X-Justdial-Key")
             or request.headers.get("X-API-Key")
+            or request.query_params.get("key")
+            or request.query_params.get("api_key")
             or payload.get("key")
             or payload.get("api_key")
             or ""

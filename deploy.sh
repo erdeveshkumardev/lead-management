@@ -28,10 +28,15 @@ if command -v k3s &> /dev/null; then
 fi
 
 echo "=========================================="
-echo "☸️  3. Applying Kubernetes Manifests..."
+echo "☸️  3. Applying Kubernetes Manifests & Restarting Pods..."
 echo "=========================================="
 
 kubectl apply -k k8s/
+
+# Force rollout restart so Pods terminate old containers and spin up with the new imported image!
+echo "🔄 Triggering rollout restart for Frontend & Backend deployments..."
+kubectl -n leadcrm rollout restart deployment/frontend-deployment
+kubectl -n leadcrm rollout restart deployment/backend-deployment
 
 echo "=========================================="
 echo "⏳ 4. Waiting for Pods to be Ready..."

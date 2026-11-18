@@ -246,6 +246,7 @@ export interface TicketMessage {
   sender_name: string;
   sender_role: 'client' | 'super_admin' | 'support' | string;
   message: string;
+  attachments?: string[];
   created_at: string;
 }
 
@@ -265,6 +266,7 @@ export interface SupportTicket {
   subject: string;
   description: string;
   context_page?: string;
+  attachments?: string[];
   messages: TicketMessage[];
   created_at: string;
   updated_at: string;
@@ -285,6 +287,7 @@ export interface CreateTicketPayload {
   subject: string;
   description: string;
   context_page?: string;
+  attachments?: string[];
 }
 
 export interface PipelineStage {
@@ -805,7 +808,10 @@ export const api = {
     return res.json();
   },
 
-  replySupportTicket: async (ticketId: string, payload: { sender_id: string; sender_name: string; sender_role: string; message: string }) => {
+  replySupportTicket: async (
+    ticketId: string, 
+    payload: { sender_id: string; sender_name: string; sender_role: string; message: string; attachments?: string[] }
+  ) => {
     const res = await fetch(`${API_BASE_URL}/support/tickets/${ticketId}/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

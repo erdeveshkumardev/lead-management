@@ -24,7 +24,8 @@ import {
   Receipt,
   Users,
   Bug,
-  Tag
+  Tag,
+  Image as ImageIcon
 } from 'lucide-react';
 import { CreateTicketModal } from '../components/CreateTicketModal';
 import { TicketDetailModal } from '../components/TicketDetailModal';
@@ -461,6 +462,12 @@ export const SupportHelpdeskPage: React.FC<SupportHelpdeskPageProps> = ({
 
                       {getStatusBadge(t.status)}
                       {getPriorityBadge(t.priority)}
+                      {(t.attachments && t.attachments.length > 0) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full border border-cyan-200">
+                          <ImageIcon className="h-3 w-3 text-cyan-600" />
+                          <span>{t.attachments.length} Screenshot{t.attachments.length > 1 ? 's' : ''}</span>
+                        </span>
+                      )}
                     </div>
 
                     <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">

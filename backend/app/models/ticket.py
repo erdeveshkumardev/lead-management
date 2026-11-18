@@ -10,6 +10,7 @@ class TicketMessage(BaseModel):
     sender_name: str
     sender_role: str  # "client", "super_admin", "support"
     message: str
+    attachments: List[str] = Field(default_factory=list)  # URLs or base64 image strings
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -30,6 +31,7 @@ class SupportTicket(Document):
     subject: str
     description: str
     context_page: Optional[str] = None  # e.g. "/settings", "/invoices", "/leads"
+    attachments: List[str] = Field(default_factory=list)  # URLs or base64 image strings
 
     messages: List[TicketMessage] = Field(default_factory=list)
 

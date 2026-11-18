@@ -16,8 +16,14 @@ import {
   MessageSquare,
   Lock,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Paperclip,
+  ZoomIn,
+  Trash2,
+  Image as ImageIcon
 } from 'lucide-react';
+import { compressImage } from '../utils/imageHelper';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface TicketDetailModalProps {
   ticket: SupportTicket;
@@ -49,6 +55,10 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 }) => {
   const [ticket, setTicket] = useState<SupportTicket>(initialTicket);
   const [replyMessage, setReplyMessage] = useState<string>('');
+  const [replyAttachments, setReplyAttachments] = useState<string[]>([]);
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const [isSending, setIsSending] = useState<boolean>(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
   const [newStatus, setNewStatus] = useState<string>(initialTicket.status);
@@ -57,6 +67,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isSuperAdmin = currentUser.role === 'super_admin';
 
   const scrollToBottom = () => {
@@ -67,9 +78,51 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
     scrollToBottom();
   }, [ticket.messages]);
 
+  const handleFilesSelected = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    setIsCompressing(true);
+    setErrorMsg('');
+    try {
+      const newImgs: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          const compressed = await compressImage(file);
+          newImgs.push(compressed);
+        }
+      }
+      setReplyAttachments((prev) => [...prev, ...newImgs]);
+    } catch (err) {
+      console.error('Failed to process screenshot:', err);
+      setErrorMsg('Failed to process screenshot attachment.');
+    } finally {
+      setIsCompressing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      await handleFilesSelected(imageFiles);
+    }
+  };
+
+  const handleRemoveReplyAttachment = (index: number) => {
+    setReplyAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyMessage.trim() || isSending) return;
+    if ((!replyMessage.trim() && replyAttachments.length === 0) || isSending) return;
 
     try {
       setIsSending(true);
@@ -79,13 +132,16 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         sender_id: currentUser.id,
         sender_name: currentUser.full_name || (isSuperAdmin ? 'Antigravity Support' : 'Company Admin'),
         sender_role: isSuperAdmin ? 'super_admin' : 'client',
-        message: replyMessage.trim()
+        message: replyMessage.trim() || 'Attached screenshot(s)',
+        attachments: replyAttachments
       });
 
-      if (res && res._id) {
-        setTicket(res);
+      const actualTicket = res?.ticket || (res?._id ? res : null);
+      if (actualTicket && (actualTicket._id || actualTicket.ticket_number)) {
+        setTicket(actualTicket);
         setReplyMessage('');
-        onTicketUpdated(res);
+        setReplyAttachments([]);
+        onTicketUpdated(actualTicket);
       } else {
         setErrorMsg(res?.detail || 'Failed to deliver reply.');
       }
@@ -109,11 +165,12 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         notes || resolutionNotes
       );
 
-      if (res && res._id) {
-        setTicket(res);
-        setNewStatus(res.status);
+      const actualTicket = res?.ticket || (res?._id ? res : null);
+      if (actualTicket && (actualTicket._id || actualTicket.ticket_number)) {
+        setTicket(actualTicket);
+        setNewStatus(actualTicket.status);
         setShowResolvePrompt(false);
-        onTicketUpdated(res);
+        onTicketUpdated(actualTicket);
       } else {
         setErrorMsg(res?.detail || 'Failed to update status.');
       }
@@ -138,8 +195,11 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto"
+      onPaste={handlePaste}
+    >
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Top Header */}
         <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -155,9 +215,15 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}>
                   {statusInfo.label}
                 </span>
-                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${priorityBadge.class}`}>
+                <span className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border ${priorityBadge.class}`}>
                   {priorityBadge.label}
                 </span>
+                {(ticket.attachments || []).length > 0 && (
+                  <span className="text-[10px] font-bold text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded-md border border-cyan-800 flex items-center gap-1">
+                    <ImageIcon className="h-3 w-3" />
+                    <span>{ticket.attachments?.length} Screenshot(s)</span>
+                  </span>
+                )}
               </div>
               <h3 className="text-base font-extrabold text-white tracking-tight truncate mt-1">
                 {ticket.subject}
@@ -268,7 +334,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
         {/* Resolution Prompt Modal / Box (if Super Admin selecting RESOLVED) */}
         {showResolvePrompt && (
-          <div className="p-4 bg-purple-50 border-b border-purple-200 animate-in fade-in duration-150">
+          <div className="p-4 bg-purple-50 border-b border-purple-200 animate-in fade-in duration-150 shrink-0">
             <div className="max-w-xl mx-auto space-y-2">
               <div className="flex items-center justify-between">
                 <h5 className="text-xs font-black text-purple-900 flex items-center gap-1.5">
@@ -305,7 +371,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         )}
 
         {errorMsg && (
-          <div className="p-3 bg-red-50 border-b border-red-200 text-xs text-red-700 font-semibold flex items-center gap-2">
+          <div className="p-3 bg-red-50 border-b border-red-200 text-xs text-red-700 font-semibold flex items-center gap-2 shrink-0">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -316,7 +382,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
           {ticket.messages && ticket.messages.length > 0 ? (
             ticket.messages.map((msg: TicketMessage, idx: number) => {
               const isSupport = msg.sender_role === 'super_admin' || msg.sender_role === 'support';
-              const isMe = msg.sender_id === currentUser.id;
+              const msgAttachments = msg.attachments || [];
 
               return (
                 <div
@@ -345,13 +411,41 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
                   {/* Message Bubble */}
                   <div
-                    className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 shadow-sm text-xs leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 shadow-sm text-xs leading-relaxed space-y-3 ${
                       isSupport
                         ? 'bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-tr-none shadow-indigo-900/10'
                         : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
                     }`}
                   >
-                    {msg.message}
+                    <div className="whitespace-pre-wrap">{msg.message}</div>
+
+                    {/* Attached Screenshots inside Bubble */}
+                    {msgAttachments.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200/20">
+                        <span className="text-[10px] font-bold uppercase tracking-wider block mb-1.5 opacity-80 flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />
+                          <span>{msgAttachments.length} Attached Screenshot(s)</span>
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {msgAttachments.map((imgUrl, imgIdx) => (
+                            <div
+                              key={imgIdx}
+                              onClick={() => setPreviewImage(imgUrl)}
+                              className="relative group rounded-xl overflow-hidden border border-black/10 bg-black/10 aspect-video cursor-pointer hover:opacity-90 transition-opacity"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Screenshot ${imgIdx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <ZoomIn className="h-4 w-4" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -368,22 +462,77 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
         {/* Resolved / Closed Banner or Reply Box */}
         {ticket.status === 'CLOSED' ? (
-          <div className="p-4 bg-slate-100 border-t border-slate-200 text-center text-xs text-slate-500 font-medium flex items-center justify-center gap-2">
+          <div className="p-4 bg-slate-100 border-t border-slate-200 text-center text-xs text-slate-500 font-medium flex items-center justify-center gap-2 shrink-0">
             <Lock className="h-4 w-4 text-slate-400" />
             <span>This ticket is closed. To report any further issues, please create a new support ticket.</span>
           </div>
         ) : (
-          <form onSubmit={handleSendReply} className="p-4 bg-white border-t border-slate-200 shrink-0">
-            <div className="flex items-center space-x-3">
+          <form onSubmit={handleSendReply} className="p-4 bg-white border-t border-slate-200 shrink-0 space-y-2">
+            
+            {/* Attached reply images preview strip */}
+            {replyAttachments.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {replyAttachments.map((img, idx) => (
+                  <div key={idx} className="relative group h-14 w-20 rounded-xl overflow-hidden border border-slate-300 bg-slate-100 shrink-0">
+                    <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveReplyAttachment(idx)}
+                      className="absolute top-1 right-1 p-0.5 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors shadow"
+                      title="Remove screenshot"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImage(img)}
+                      className="absolute bottom-1 left-1 p-0.5 rounded-md bg-black/60 text-white text-[9px]"
+                      title="Zoom"
+                    >
+                      <ZoomIn className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isCompressing && (
+              <div className="flex items-center gap-2 text-xs text-indigo-600 font-semibold animate-pulse">
+                <div className="h-3 w-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                <span>Optimizing screenshot...</span>
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              {/* Paperclip / Attach Screenshot Button */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files) handleFilesSelected(e.target.files);
+                }}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 rounded-2xl border border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/60 text-slate-500 hover:text-indigo-600 transition-colors"
+                title="Attach Screenshot (or Ctrl+V to paste)"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+
               <textarea
                 value={replyMessage}
                 onChange={(e) => setReplyMessage(e.target.value)}
                 placeholder={
                   isSuperAdmin
-                    ? 'Reply as Central Support to client...'
-                    : 'Add reply or additional details for the support team...'
+                    ? 'Reply as Central Support to client... (Ctrl+V to paste screenshot)'
+                    : 'Add reply or additional details... (Ctrl+V to paste screenshot)'
                 }
-                rows={2}
+                rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -392,10 +541,11 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 }}
                 className="flex-1 px-4 py-2.5 rounded-2xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
               />
+
               <button
                 type="submit"
-                disabled={!replyMessage.trim() || isSending}
-                className="h-11 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-40"
+                disabled={(!replyMessage.trim() && replyAttachments.length === 0) || isSending || isCompressing}
+                className="h-10 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-40"
               >
                 {isSending ? (
                   <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -407,8 +557,9 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 )}
               </button>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1.5 px-1 flex items-center justify-between">
-              <span>Press <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Enter</kbd> to send, <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Shift+Enter</kbd> for new line</span>
+
+            <p className="text-[10px] text-slate-400 px-1 flex items-center justify-between">
+              <span>Press <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Enter</kbd> to send, <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Shift+Enter</kbd> for new line, <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Ctrl+V</kbd> to paste screenshot</span>
               {ticket.resolution_notes && (
                 <span className="text-purple-600 font-semibold truncate max-w-sm">
                   Resolution: {ticket.resolution_notes}
@@ -418,6 +569,15 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
           </form>
         )}
       </div>
+
+      {/* Lightbox Zoom Modal */}
+      {previewImage && (
+        <ImageLightboxModal
+          imageUrl={previewImage}
+          onClose={() => setPreviewImage(null)}
+          title="Screenshot View"
+        />
+      )}
     </div>
   );
 };

@@ -23,6 +23,7 @@ class CreateTicketRequest(BaseModel):
     subject: str
     description: str
     context_page: Optional[str] = None
+    attachments: List[str] = Field(default_factory=list)
 
 
 class TicketReplyRequest(BaseModel):
@@ -30,6 +31,7 @@ class TicketReplyRequest(BaseModel):
     sender_name: str
     sender_role: str  # "client", "super_admin", "support"
     message: str
+    attachments: List[str] = Field(default_factory=list)
 
 
 class UpdateTicketStatusRequest(BaseModel):
@@ -86,6 +88,7 @@ async def create_support_ticket(payload: CreateTicketRequest):
         sender_name=payload.user_name,
         sender_role="client",
         message=payload.description,
+        attachments=payload.attachments,
         created_at=datetime.utcnow()
     )
 
@@ -104,15 +107,21 @@ async def create_support_ticket(payload: CreateTicketRequest):
         subject=payload.subject.strip(),
         description=payload.description.strip(),
         context_page=payload.context_page,
+        attachments=payload.attachments,
         messages=[initial_msg],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
     await ticket.insert()
 
+    # Convert to response dictionary containing top-level fields & _id for frontend compatibility
+    ticket_dict = ticket.dict()
+    ticket_dict["_id"] = str(ticket.id)
+
     return {
         "status": "success",
         "message": f"Support ticket {ticket.ticket_number} created successfully",
+        **ticket_dict,
         "ticket": ticket
     }
 
@@ -167,12 +176,15 @@ async def list_support_tickets(
         ]
 
     total = await SupportTicket.find(query).count()
-    tickets = await SupportTicket.find(query).sort("-updated_at").skip(skip).limit(limit).to_list()
+    raw_tickets = await SupportTicket.find(query).sort("-updated_at").skip(skip).limit(limit).to_list()
 
-    return {
-        "total": total,
-        "items": tickets
-    }
+    items = []
+    for t in raw_tickets:
+        td = t.dict()
+        td["_id"] = str(t.id)
+        items.append(td)
+
+    return items
 
 
 @router.get("/tickets/{ticket_id}")
@@ -186,7 +198,9 @@ async def get_support_ticket_detail(ticket_id: str, tenant_id: Optional[str] = N
     if not ticket:
         raise HTTPException(status_code=404, detail="Support ticket not found")
 
-    return ticket
+    td = ticket.dict()
+    td["_id"] = str(ticket.id)
+    return td
 
 
 @router.post("/tickets/{ticket_id}/reply")
@@ -211,6 +225,7 @@ async def reply_to_ticket(
         sender_name=payload.sender_name,
         sender_role=payload.sender_role,
         message=payload.message.strip(),
+        attachments=payload.attachments,
         created_at=datetime.utcnow()
     )
 
@@ -226,9 +241,14 @@ async def reply_to_ticket(
         ticket.status = "IN_PROGRESS"
 
     await ticket.save()
+
+    ticket_dict = ticket.dict()
+    ticket_dict["_id"] = str(ticket.id)
+
     return {
         "status": "success",
         "message": "Reply posted successfully",
+        **ticket_dict,
         "ticket": ticket
     }
 
@@ -258,9 +278,13 @@ async def update_ticket_status(ticket_id: str, payload: UpdateTicketStatusReques
         ticket.resolved_at = None
 
     await ticket.save()
+    ticket_dict = ticket.dict()
+    ticket_dict["_id"] = str(ticket.id)
+
     return {
         "status": "success",
         "message": f"Ticket status updated to {new_status}",
+        **ticket_dict,
         "ticket": ticket
     }
 

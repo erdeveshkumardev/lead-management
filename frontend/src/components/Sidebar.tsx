@@ -17,7 +17,8 @@ import {
   Sparkles,
   Globe,
   Sliders,
-  User
+  User,
+  LifeBuoy
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'superadmin', label: 'Tenants & Licensing', icon: Building2 },
         { id: 'global_masters', label: 'Global Masters', icon: Globe },
         { id: 'dashboard', label: 'Platform Analytics', icon: LayoutDashboard },
+        { id: 'support', label: 'Support & Helpdesk', icon: LifeBuoy },
         { id: 'settings', label: 'System Configuration', icon: Settings },
       ]
     : [
@@ -61,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ...(isCompanyAdmin ? [{ id: 'company_masters', label: 'CRM Masters', icon: Sliders }] : []),
         ...(isCompanyAdmin ? [{ id: 'team', label: 'Team & Permissions', icon: UserPlus }] : []),
         { id: 'products', label: 'Products Master', icon: Package },
+        { id: 'support', label: 'Help & Support', icon: LifeBuoy },
         ...(isCompanyAdmin ? [{ id: 'settings', label: 'Company & API Settings', icon: Settings }] : []),
       ];
 

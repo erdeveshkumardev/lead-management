@@ -13,6 +13,7 @@ from app.models.lead import Lead
 from app.models.product import Product
 from app.models.invoice import Invoice
 from app.models.masters import GlobalMasterItem
+from app.models.ticket import SupportTicket
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ async def init_db(max_retries: int = 5, retry_delay: float = 2.0):
                     Product,
                     Invoice,
                     GlobalMasterItem,
+                    SupportTicket,
                 ],
             )
             _is_db_initialized = True

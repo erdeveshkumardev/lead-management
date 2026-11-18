@@ -13,7 +13,8 @@ import {
   Crown,
   ChevronDown,
   UserCheck,
-  UserPlus
+  UserPlus,
+  LifeBuoy
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -43,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     ? [
         { id: 'superadmin', label: 'Tenants & Licensing', icon: Building2 },
         { id: 'dashboard', label: 'Platform Analytics', icon: LayoutDashboard },
+        { id: 'support', label: 'Support Hub', icon: LifeBuoy },
         { id: 'settings', label: 'System Settings', icon: Settings },
       ]
     : [
@@ -52,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'invoices', label: 'Invoices & Bills', icon: Receipt },
         ...(isCompanyAdmin ? [{ id: 'team', label: 'Team & Permissions', icon: UserPlus }] : []),
         { id: 'products', label: 'Products Master', icon: Package },
+        { id: 'support', label: 'Help & Support', icon: LifeBuoy },
         { id: 'settings', label: 'Company Profile', icon: Settings },
       ];
 

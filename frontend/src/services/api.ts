@@ -240,6 +240,53 @@ export interface Product {
   gst_rate: number;
 }
 
+export interface TicketMessage {
+  message_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: 'client' | 'super_admin' | 'support' | string;
+  message: string;
+  created_at: string;
+}
+
+export interface SupportTicket {
+  _id: string;
+  ticket_number: string;
+  tenant_id: string;
+  company_name: string;
+  user_id: string;
+  user_name: string;
+  user_email?: string;
+  user_phone?: string;
+  user_role: string;
+  category: 'webhooks' | 'billing' | 'whatsapp_sms' | 'leads' | 'team_access' | 'general_bug' | string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CLIENT' | 'RESOLVED' | 'CLOSED';
+  subject: string;
+  description: string;
+  context_page?: string;
+  messages: TicketMessage[];
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string;
+  resolved_by_name?: string;
+  resolution_notes?: string;
+}
+
+export interface CreateTicketPayload {
+  tenant_id: string;
+  user_id: string;
+  user_name: string;
+  user_email?: string;
+  user_phone?: string;
+  user_role?: string;
+  category: string;
+  priority: string;
+  subject: string;
+  description: string;
+  context_page?: string;
+}
+
 export interface PipelineStage {
   id: string;
   label: string;
@@ -718,6 +765,73 @@ export const api = {
     let url = `${API_BASE_URL}/leads/send-followup-whatsapp-alerts?tenant_id=${tenantId}`;
     if (staffUserId) url += `&staff_user_id=${staffUserId}`;
     const res = await fetch(url, { method: 'POST' });
+    return res.json();
+  },
+
+  // -------------------------------------------------------------
+  // SUPPORT & HELPDESK SYSTEM
+  // -------------------------------------------------------------
+  createSupportTicket: async (payload: CreateTicketPayload) => {
+    const res = await fetch(`${API_BASE_URL}/support/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  getSupportTickets: async (params?: {
+    tenantId?: string;
+    userRole?: string;
+    status?: string;
+    priority?: string;
+    category?: string;
+    search?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.tenantId && params.tenantId !== 'all') q.append('tenant_id', params.tenantId);
+    if (params?.userRole) q.append('user_role', params.userRole);
+    if (params?.status && params.status !== 'all') q.append('status', params.status);
+    if (params?.priority && params.priority !== 'all') q.append('priority', params.priority);
+    if (params?.category && params.category !== 'all') q.append('category', params.category);
+    if (params?.search) q.append('search', params.search);
+    const res = await fetch(`${API_BASE_URL}/support/tickets?${q.toString()}`);
+    return res.json();
+  },
+
+  getSupportTicketDetail: async (ticketId: string, tenantId?: string) => {
+    const q = tenantId ? `?tenant_id=${tenantId}` : '';
+    const res = await fetch(`${API_BASE_URL}/support/tickets/${ticketId}${q}`);
+    return res.json();
+  },
+
+  replySupportTicket: async (ticketId: string, payload: { sender_id: string; sender_name: string; sender_role: string; message: string }) => {
+    const res = await fetch(`${API_BASE_URL}/support/tickets/${ticketId}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  updateSupportTicketStatus: async (ticketId: string, status: string, resolvedByName?: string, resolutionNotes?: string) => {
+    const res = await fetch(`${API_BASE_URL}/support/tickets/${ticketId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status,
+        resolved_by_name: resolvedByName,
+        resolution_notes: resolutionNotes
+      })
+    });
+    return res.json();
+  },
+
+  getSupportStats: async (tenantId?: string, userRole?: string) => {
+    const q = new URLSearchParams();
+    if (tenantId && tenantId !== 'all') q.append('tenant_id', tenantId);
+    if (userRole) q.append('user_role', userRole);
+    const res = await fetch(`${API_BASE_URL}/support/stats?${q.toString()}`);
     return res.json();
   }
 };

@@ -10,6 +10,7 @@ import { LeadsPage } from './pages/LeadsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SupportHelpdeskPage } from './pages/SupportHelpdeskPage';
 import { SuperAdminPortal } from './pages/superadmin/SuperAdminPortal';
 import { GlobalMastersPortal } from './pages/superadmin/GlobalMastersPortal';
 import { CompanyMastersPage } from './pages/masters/CompanyMastersPage';
@@ -523,6 +524,14 @@ export function App() {
 
             {/* Tab: Products Master */}
             {currentTab === 'products' && <ProductsPage />}
+
+            {/* Tab: Support & Helpdesk Hub */}
+            {currentTab === 'support' && (
+              <SupportHelpdeskPage
+                currentUser={currentUser}
+                tenantInfo={tenantInfo}
+              />
+            )}
 
             {/* Tab: Settings */}
             {currentTab === 'settings' && <SettingsPage currentUser={currentUser} tenantId={activeTenantId} />}

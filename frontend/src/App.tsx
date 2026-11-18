@@ -40,7 +40,16 @@ export function App() {
     }
   });
 
-  const [currentTab, setCurrentTab] = useState<string>('kanban');
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    try {
+      const savedUser = localStorage.getItem('leadcrm_user');
+      const user = savedUser ? JSON.parse(savedUser) : null;
+      if (user?.role === 'super_admin') return 'superadmin';
+      return 'kanban';
+    } catch {
+      return 'kanban';
+    }
+  });
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [kanbanData, setKanbanData] = useState<Record<string, Lead[]>>({});
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
@@ -131,6 +140,16 @@ export function App() {
     } else if (currentUser?.role === 'company_admin') {
       if (currentTab === 'superadmin' || currentTab === 'global_masters') {
         setCurrentTab('dashboard');
+      }
+    } else if (currentUser?.role === 'super_admin') {
+      if (
+        currentTab === 'kanban' ||
+        currentTab === 'leads' ||
+        currentTab === 'invoices' ||
+        currentTab === 'company_masters' ||
+        currentTab === 'team'
+      ) {
+        setCurrentTab('superadmin');
       }
     }
   }, [currentUser, currentTab]);

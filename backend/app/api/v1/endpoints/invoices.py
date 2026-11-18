@@ -60,17 +60,21 @@ async def list_invoices(
     limit: int = 50
 ):
     from app.models.tenant import Tenant
+    tenant = await get_document_by_id(Tenant, tenant_id)
+    if not tenant:
+        tenant = await Tenant.find_one({"$or": [{"slug": tenant_id}, {"company_name": tenant_id}]})
+
     tenant_ids = [tenant_id]
-    if tenant_id == "demo_tenant_01":
+    if tenant:
+        tenant_ids.append(str(tenant.id))
+        if tenant.slug in ["apex-machineries", "demo_tenant_01"] or str(tenant.id) == "6af82cb4684ef5d29122f856":
+            tenant_ids.append("demo_tenant_01")
+    elif tenant_id == "demo_tenant_01":
         first_t = await Tenant.find_one()
         if first_t:
             tenant_ids.append(str(first_t.id))
-    else:
-        first_t = await Tenant.find_one()
-        if first_t and str(first_t.id) == tenant_id:
-            tenant_ids.append("demo_tenant_01")
 
-    query = {"tenant_id": {"$in": tenant_ids}}
+    query = {"tenant_id": {"$in": list(set(tenant_ids))}}
     if document_type:
         query["document_type"] = document_type
     if payment_status:

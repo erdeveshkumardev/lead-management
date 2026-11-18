@@ -11,9 +11,9 @@ export const getApiBaseUrl = (): string => {
     // NEVER use hardcoded localhost dev URLs! Automatically bind to window.location.origin.
     if (!isLocalhost && (!url || url.includes('localhost') || url.includes('127.0.0.1'))) {
       url = `${window.location.origin}/api/v1`;
-    } else if (!url) {
-      // Local dev fallback
-      url = 'http://localhost:8002/api/v1';
+    } else if (!url || url.includes(':8002')) {
+      // Local dev fallback (Uvicorn runs on port 8080 locally)
+      url = 'http://localhost:8080/api/v1';
     } else if (url.startsWith('/')) {
       // Relative path e.g. '/api/v1' -> prefix with domain origin
       url = `${window.location.origin}${url}`;
@@ -25,8 +25,8 @@ export const getApiBaseUrl = (): string => {
     if (window.location.protocol === 'https:' && url.startsWith('http://')) {
       url = 'https://' + url.slice(7);
     }
-  } else if (!url) {
-    url = 'http://localhost:8002/api/v1';
+  } else if (!url || url.includes(':8002')) {
+    url = 'http://localhost:8080/api/v1';
   }
 
   // Sanitize double slashes & trailing slashes safely (e.g. //api/v1 -> /api/v1)

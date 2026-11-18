@@ -115,6 +115,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   useEffect(() => {
     loadLeadInvoices();
+
+    const activeTenant = lead.tenant_id || tenantId || 'demo_tenant_01';
+    api.getTeamMembers(activeTenant)
+      .then((res) => {
+        if (res && res.members) {
+          setTeamMembers(res.members.filter((m: TeamMember) => m.is_active));
+        }
+      })
+      .catch((err) => console.error('Failed to load team members in modal:', err));
   }, [lead._id, lead.id, lead.tenant_id, tenantId]);
 
   const handleOpenPayment = (inv: Invoice) => {

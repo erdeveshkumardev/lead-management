@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: leadcrm
+
+# Releases are done with deploy.sh ("bash deploy.sh"), which builds, tests and tags the images and fills the tag in.
+# ("kubectl apply -k k8s/" on its own would leave the placeholder image tag in place: the new pods
+#  would not start and the running version would simply keep serving.)
+#
+# The Secret is deliberately NOT listed here: it is created directly in the cluster
+# (scripts/setup-cluster-secret.sh), so "kubectl apply -k k8s/" can never overwrite it
+# and no credential is ever kept in a file.
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml

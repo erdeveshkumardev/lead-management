@@ -1,0 +1,45 @@
+# Weekly pull requests for outdated or vulnerable dependencies.
+# Every pull request runs the "Security checks" workflow before it can be merged.
+version: 2
+updates:
+  # Back end. After merging a change to requirements.txt, regenerate requirements.lock
+  # (command in SECURITY.md) - the check "requirements.lock matches requirements.txt" fails until then.
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      build-tools:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # Base images of the two containers
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+    ignore:
+      # a new Python version is a deliberate decision (re-lock and re-test), not an automatic update
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+
+  # The pinned actions in .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

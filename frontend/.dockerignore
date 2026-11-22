@@ -1,0 +1,13 @@
+# Allow-list: only what the build needs is sent to Docker (never .env files or node_modules)
+*
+!package.json
+!package-lock.json
+!index.html
+!vite.config.ts
+!tsconfig.json
+!postcss.config.js
+!tailwind.config.js
+!nginx.conf
+!nginx-security-headers.conf
+!public/
+!src/

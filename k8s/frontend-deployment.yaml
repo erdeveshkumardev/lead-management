@@ -1,0 +1,91 @@
+# Released by deploy.sh (never with "kubectl apply" directly - see the image comment below).
+# The Service comes first: it selects the container port by NAME ("http"), so pods of the previous
+# and of the new version are both reachable while one replaces the other.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: leadcrm
+  labels:
+    app: leadcrm-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: leadcrm-frontend
+  ports:
+    - name: http
+      port: 80            # unchanged for the ingress
+      targetPort: http    # nginx now listens on 8080 as an unprivileged user
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: leadcrm
+  labels:
+    app: leadcrm-frontend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: leadcrm-frontend
+  template:
+    metadata:
+      labels:
+        app: leadcrm-frontend
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101      # the "nginx" user of the unprivileged image
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          # deploy.sh replaces this placeholder with the tag of the release it has just built and tested.
+          # It is deliberately not a real tag: applying this file by hand cannot start an old or untested image.
+          image: leadcrm-frontend:set-by-deploy.sh
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            # where nginx forwards /api/ (the ingress normally routes /api to the API directly;
+            # this keeps the web server correct when it is reached on its own as well)
+            - name: BACKEND_UPSTREAM
+              value: "http://backend-service:8000"
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 2

@@ -1,0 +1,89 @@
+# =============================================================================
+#  Lead-to-Cash - single-server run with Docker Compose
+#
+#  1. Create backend/.env (ignored by git, never committed):
+#        cp backend/.env.example backend/.env
+#        docker compose build backend
+#        docker compose run --rm backend python -m app.cli generate-keys
+#     Paste the two printed lines (SECRET_KEY, ENCRYPTION_KEYS) into backend/.env and set
+#     MONGODB_URL, ENVIRONMENT, FRONTEND_BASE_URL, BACKEND_CORS_ORIGINS, ALLOWED_HOSTS there.
+#  2. docker compose up -d --build
+#
+#  Database: use MongoDB Atlas (set MONGODB_URL in backend/.env), OR start a local MongoDB
+#  container for testing:  docker compose --profile local-db up -d --build
+#  and set  MONGODB_URL=mongodb://mongo:27017  in backend/.env  ("localhost" does NOT work
+#  inside a container - it points to the container itself).
+#
+#  No secret is written in this file. The API is NOT published on the host:
+#  the only open port is the web server, which forwards /api/ to the API.
+#  For production put a TLS-terminating reverse proxy (Caddy, Traefik, nginx,
+#  a cloud load balancer) in front of the web server and use ENVIRONMENT=production.
+# =============================================================================
+services:
+  # Optional local database for testing (profile "local-db"). Not published on the host: only the
+  # API container can reach it, and it has no password, so never use it for real customer data.
+  mongo:
+    profiles: ["local-db"]
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leadcrm-net
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    # reachable only from the web server container on the private network
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - leadcrm-net
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: http://backend:8000
+    ports:
+      # host port 80 -> nginx (which runs unprivileged on 8080 inside the container).
+      # When a TLS-terminating reverse proxy runs on the same host, bind to this machine only: "127.0.0.1:8080:8080"
+      - "80:8080"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - leadcrm-net
+
+volumes:
+  mongo-data:
+
+networks:
+  leadcrm-net:
+    driver: bridge

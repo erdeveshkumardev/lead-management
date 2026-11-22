@@ -1,0 +1,53 @@
+# =============================================================================
+#  OPTIONAL - not applied by deploy.sh. It changes the K3s ingress controller
+#  (Traefik) for EVERY site on this server, so read this first.
+#
+#  The problem it solves
+#    On a default K3s installation the ingress controller usually sees every
+#    visitor with an internal cluster address (10.42.x.x). The application then
+#    cannot tell visitors apart:
+#      - the audit log and "Signed-in devices" show the same address for everybody
+#      - limits per address (sign-in attempts, website forms) are shared by everybody
+#    The application keeps working (its per-address limits are generous for this
+#    reason), and the API writes one warning line to its log when it notices.
+#
+#  How to check
+#    Sign in and open "Security & Audit Log". The address next to your own sign-in
+#    should be your public address (what https://ifconfig.me shows in your browser).
+#    10.x.x.x, 172.16-31.x.x or 192.168.x.x means the real address is hidden.
+#    Or:  kubectl -n leadcrm logs -l app=leadcrm-backend --tail=1000 | grep "Real visitor addresses"
+#
+#  What this file does
+#    It asks K3s to hand traffic to Traefik without rewriting the sender address
+#    (externalTrafficPolicy: Local), using the K3s way of customising its packaged
+#    Traefik (a HelmChartConfig).
+#
+#  Before applying
+#    kubectl -n kube-system get helmchartconfig traefik
+#    If that already exists, do NOT apply this file (it would replace your settings):
+#    add the three "service:" lines below to your existing one instead.
+#
+#  Apply:   kubectl apply -f k8s/optional/traefik-real-client-ip.yaml
+#           K3s re-deploys Traefik within about a minute (a few seconds of interruption).
+#           Then check again as described above.
+#  Undo:    kubectl delete -f k8s/optional/traefik-real-client-ip.yaml
+#
+#  Limits
+#    - It does not help on every network set-up (the K3s documentation lists cases, for
+#      example nodes configured with "node-external-ip"). If the addresses are still
+#      internal afterwards, undo it - nothing else depends on it.
+#    - Behind a CDN or another proxy (for example Cloudflare) this is not the fix: the
+#      ingress controller must be configured to trust the CDN's addresses
+#      (Traefik "forwardedHeaders.trustedIPs") and FORWARDED_ALLOW_HOPS in
+#      k8s/configmap.yaml must be "2".
+# =============================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      spec:
+        externalTrafficPolicy: Local

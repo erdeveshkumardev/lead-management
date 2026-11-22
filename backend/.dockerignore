@@ -1,0 +1,7 @@
+# Allow-list: nothing is sent to the Docker build except what the image needs.
+# (This keeps .env files, tests, virtual environments and local data out of every image layer.)
+*
+!app/
+!requirements.lock
+**/__pycache__/
+**/*.py[cod]

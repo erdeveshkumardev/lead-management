@@ -1,0 +1,15 @@
+# These files run on Linux (the server and the containers). They must keep Unix line endings even when
+# the project is edited on Windows - a shell script with Windows line endings does not start.
+*.sh            text eol=lf
+*.py            text eol=lf
+*.conf          text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+*.lock          text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+
+*.pdf   binary
+*.png   binary
+*.woff  binary
+*.woff2 binary

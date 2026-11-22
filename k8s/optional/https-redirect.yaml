@@ -1,0 +1,27 @@
+# =============================================================================
+#  OPTIONAL hardening - not applied by deploy.sh.
+#
+#  Sends every plain-HTTP request to HTTPS (Traefik). Use it only when the
+#  certificate works, i.e. https://<your-domain> already opens without warnings.
+#  Do NOT use it behind a CDN that connects to this server over plain HTTP
+#  ("flexible" TLS): that produces an endless redirect.
+#
+#  1. Find the API group of your Traefik version:
+#         kubectl api-resources | grep -i middlewares
+#     "traefik.io"            -> keep the apiVersion below
+#     "traefik.containo.us"   -> change it to traefik.containo.us/v1alpha1
+#  2. kubectl apply -f k8s/optional/https-redirect.yaml
+#  3. Attach it to the ingress:
+#         kubectl -n leadcrm annotate ingress leadcrm-ingress --overwrite \
+#           traefik.ingress.kubernetes.io/router.middlewares=leadcrm-redirect-https@kubernetescrd
+#  To undo: remove the annotation (same command ending in "router.middlewares-") and delete this object.
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: leadcrm
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

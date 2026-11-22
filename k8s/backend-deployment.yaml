@@ -1,0 +1,111 @@
+# Released by deploy.sh (never with "kubectl apply" directly - see the image comment below).
+# The Service comes first: it selects the container port by NAME ("http"), so pods of the previous
+# and of the new version are both reachable while one replaces the other.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: leadcrm
+  labels:
+    app: leadcrm-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: leadcrm-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: leadcrm
+  labels:
+    app: leadcrm-backend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # the old version keeps serving until the new one has passed its readiness check
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: leadcrm-backend
+  template:
+    metadata:
+      labels:
+        app: leadcrm-backend
+    spec:
+      # the application never talks to the Kubernetes API: it gets no API token
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          # deploy.sh replaces this placeholder with the tag of the release it has just built and tested.
+          # It is deliberately not a real tag: applying this file by hand cannot start an old or untested image.
+          image: leadcrm-backend:set-by-deploy.sh
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: leadcrm-config
+            - secretRef:
+                name: leadcrm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            # the only writable place (temporary files of uploads); everything else is read-only
+            - name: tmp
+              mountPath: /tmp
+          # gives start-up tasks (indexes, one-time data upgrade) up to 2 minutes before liveness checks begin
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # ready only while the database can be reached
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi

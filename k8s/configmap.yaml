@@ -1,0 +1,35 @@
+# Non-secret settings of the API. Secrets live in the Secret "leadcrm-secret"
+# (created with scripts/setup-cluster-secret.sh, never stored in git).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: leadcrm-config
+  namespace: leadcrm
+data:
+  PROJECT_NAME: "Lead-to-Cash LMS"
+  API_V1_STR: "/api/v1"
+  DATABASE_NAME: "LeadCRM"
+
+  # production = HTTPS-only session cookie, HSTS, API documentation switched off, strict start-up checks
+  ENVIRONMENT: "production"
+
+  # ---- change these three when the site moves to another address ----
+  FRONTEND_BASE_URL: "https://leadcrm.travistas.in"
+  BACKEND_CORS_ORIGINS: "[\"https://leadcrm.travistas.in\"]"
+  ALLOWED_HOSTS: "leadcrm.travistas.in"
+
+  # Number of proxies between the visitor and the API (1 = the ingress controller). It decides which
+  # address is logged and rate-limited for each visitor. With a CDN / extra load balancer in front
+  # (for example Cloudflare) it must be 2 AND the ingress controller must trust the CDN's addresses.
+  # See SECURITY.md, "Real visitor addresses".
+  FORWARDED_ALLOW_HOPS: "1"
+
+  # Sign-in tokens are short-lived; people stay signed in through the refresh cookie
+  ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+
+  # Roles that must use two-factor sign-in (comma separated), e.g. "super_admin,company_admin"
+  MFA_REQUIRED_ROLES: "super_admin"
+
+  ENABLE_SCHEDULER: "true"
+  TIMEZONE: "Asia/Kolkata"

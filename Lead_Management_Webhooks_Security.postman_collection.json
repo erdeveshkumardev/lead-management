@@ -1,0 +1,708 @@
+{
+  "info": {
+    "name": "Lead-to-Cash - Lead ingestion and webhook security",
+    "description": "Requests for testing lead ingestion against YOUR OWN installation.\n\nNothing in this collection or its environment contains a credential. Fill the environment yourself:\n  1. company_id and the tokens: sign in to the web application as a company administrator, open\n     Settings -> Integrations and copy them from the webhook addresses shown there\n     (address format: /api/v1/webhooks/<provider>/<company_id>/<token>).\n  2. website_signing_secret: Settings -> Integrations -> Website -> Reveal (asks for your password).\n  3. admin_email / admin_password: only for folder 0 and 3 (settings API).\n\nNever save real tokens into a file that is committed: keep them in the Postman 'current value' column only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Sign in (needed for folder 3 only)",
+      "item": [
+        {
+          "name": "0.1 Sign in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Returns a short-lived access token (15 minutes). The refresh cookie is HttpOnly and is only used by the web application."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "if (body.mfa_required) {",
+                  "    console.log(\"This account uses two-factor sign-in: send 0.2 with the 6-digit code.\");",
+                  "    pm.environment.set(\"mfa_token\", body.mfa_token);",
+                  "} else {",
+                  "    pm.environment.set(\"access_token\", body.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 Two-factor code (only when 0.1 answered mfa_required)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/mfa/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfa_token\": \"{{mfa_token}}\",\n  \"code\": \"000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.environment.set(\"access_token\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Website form posted from a browser (public token)",
+      "item": [
+        {
+          "name": "1.1 Real visitor (form open for 3.5 seconds)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}/{{website_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Rajesh Sharma\",\n  \"phone\": \"9876543210\",\n  \"email\": \"rajesh.sharma@example.com\",\n  \"company_name\": \"Apex Engineering Ltd\",\n  \"city\": \"Ahmedabad\",\n  \"product_inquired\": \"CNC Milling Center 3-Axis\",\n  \"inquiry_message\": \"Please share a quotation with installation and warranty details.\",\n  \"_render_time\": {{human_render_time}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "If 'Allowed domains' is filled in for the website integration, add an Origin header with one of those domains - Postman sends none."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"human_render_time\", ((Date.now() / 1000) - 3.5).toString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"lead stored\", function () { pm.expect(pm.response.json().status).to.eql(\"success\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Bot fills the hidden field (honeypot)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}/{{website_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Automated Bot\",\n  \"phone\": \"9876500000\",\n  \"email\": \"bot@example.com\",\n  \"inquiry_message\": \"spam\",\n  \"website_hp\": \"http://spam.example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "// The answer looks like a success on purpose, so a bot cannot tell it was filtered. No lead is stored.",
+                  "pm.test(\"looks like a success\", function () { pm.expect(pm.response.json().status).to.eql(\"success\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Bot submits within 2 seconds (speed trap)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}/{{website_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Headless Browser\",\n  \"phone\": \"9876599999\",\n  \"inquiry_message\": \"instant submit\",\n  \"_render_time\": {{instant_render_time}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set(\"instant_render_time\", ((Date.now() / 1000) - 0.1).toString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "// Same deliberately indistinguishable answer; no lead is stored."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 No token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"No Token\",\n  \"phone\": \"9876512345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 Placeholder phone number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}/{{website_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Test User\",\n  \"phone\": \"0000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"ignored\", function () { pm.expect(pm.response.json().status).to.eql(\"ignored\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Website form posted by your own server (signing secret)",
+      "item": [
+        {
+          "name": "2.1 HMAC-SHA256 signed body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "sha256={{signature}}"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Vikram Singhania\",\n  \"phone\": \"9123456780\",\n  \"email\": \"vikram@example.com\",\n  \"company_name\": \"Singhania Pipes Pvt Ltd\",\n  \"city\": \"Kolkata\",\n  \"product_inquired\": \"High Pressure Industrial Valves\",\n  \"inquiry_message\": \"Sent by our own back end.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const secret = pm.environment.get(\"website_signing_secret\");",
+                  "if (!secret) { throw new Error(\"Set website_signing_secret in the environment first (Settings -> Integrations -> Website -> Reveal).\"); }",
+                  "const signature = CryptoJS.HmacSHA256(pm.request.body.raw, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: \"X-Webhook-Signature\", value: \"sha256=\" + signature });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 Signing secret as Bearer token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{website_signing_secret}}"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Deepak Aggarwal\",\n  \"phone\": \"9812345678\",\n  \"email\": \"deepak@example.com\",\n  \"inquiry_message\": \"Sent by our own back end.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 Wrong signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "sha256=0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/website/{{company_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Tampered\",\n  \"phone\": \"9991112233\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Integration settings (company administrator)",
+      "item": [
+        {
+          "name": "3.1 Integrations (stored secrets are masked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": "{{base_url}}/tenants/{{company_id}}/integrations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Allowed website domains",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": "{{base_url}}/tenants/{{company_id}}/integrations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"integrations\": {\n    \"website\": {\n      \"is_enabled\": true,\n      \"allowed_domains\": [\n        \"mycompany.example\",\n        \"landing.example\"\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.3 New website keys (the old ones stop working at once)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": "{{base_url}}/tenants/{{company_id}}/integrations/regenerate-keys?provider=website",
+            "description": "The new values are returned once. They are kept in the Postman environment's current value only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.environment.set(\"website_token\", body.webhook_token);",
+                  "pm.environment.set(\"website_signing_secret\", body.secret_key);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Marketplaces (token in the address)",
+      "item": [
+        {
+          "name": "4.1 IndiaMART push",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/indiamart/{{company_id}}/{{indiamart_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"CODE\": 200,\n  \"STATUS\": \"SUCCESS\",\n  \"RESPONSE\": {\n    \"UNIQUE_QUERY_ID\": \"IM_99887766\",\n    \"SENDER_NAME\": \"Vikas Sharma\",\n    \"SENDER_MOBILE\": \"9825012345\",\n    \"SENDER_EMAIL\": \"vikas@example.com\",\n    \"SENDER_COMPANY\": \"Sharma Engineering Works\",\n    \"SENDER_CITY\": \"Surat\",\n    \"SENDER_STATE\": \"Gujarat\",\n    \"QUERY_PRODUCT_NAME\": \"CNC Milling Center 3-Axis\",\n    \"QUERY_MESSAGE\": \"Looking for a quotation for 2 units.\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 TradeIndia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/tradeindia/{{company_id}}/{{tradeindia_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rfi_id\": \"TI_88776655\",\n  \"sender_name\": \"Mahesh Joshi\",\n  \"sender_mobile\": \"9825123456\",\n  \"sender_email\": \"mahesh@example.com\",\n  \"company_name\": \"Joshi Forging Works\",\n  \"sender_city\": \"Rajkot\",\n  \"sender_state\": \"Gujarat\",\n  \"product_name\": \"Hydraulic Press 50 Ton\",\n  \"query_message\": \"Please share your best quotation.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.3 Justdial",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/justdial/{{company_id}}/{{justdial_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadid\": \"JD_55443322\",\n  \"name\": \"Prashant Verma\",\n  \"mobile\": \"9811223344\",\n  \"email\": \"prashant@example.com\",\n  \"company\": \"Verma Tech Solutions\",\n  \"city\": \"Delhi\",\n  \"category\": \"Industrial Machinery Dealers\",\n  \"area\": \"Okhla Industrial Area\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.4 Facebook: subscription handshake",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/webhooks/facebook/{{company_id}}?hub.mode=subscribe&hub.challenge=11223344&hub.verify_token={{facebook_verify_token}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"challenge echoed\", function () { pm.expect(pm.response.text()).to.eql(\"11223344\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.5 Facebook lead relayed by a connector (Zapier / Make)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/facebook/{{company_id}}/{{facebook_token}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Anita Desai\",\n  \"phone_number\": \"9898011223\",\n  \"email\": \"anita@example.com\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"message\": \"Interested in machinery finance options\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Deliveries that come directly from Meta are verified with the App Secret (X-Hub-Signature-256) instead of this token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.6 Old-style address without a token is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/webhooks/indiamart/{{company_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"RESPONSE\": {\n    \"SENDER_NAME\": \"No Token\",\n    \"SENDER_MOBILE\": \"9825012345\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
